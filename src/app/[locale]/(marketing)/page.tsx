@@ -70,7 +70,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: L
             <div className="rounded-[26px] bg-[linear-gradient(135deg,#162339_0%,#213a5f_100%)] px-5 py-5 text-white">
               <div className="flex items-center gap-2 text-sm text-sky-200">
                 <Sparkles size={16} />
-                Qwen 3.5 Plus
+                Loeme 3.5 Plus
               </div>
               <p className="mt-4 text-sm leading-7 text-slate-200">
                 {locale === "zh-Hant"

@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { Locale } from "@/i18n/config";
 import { getMessages } from "@/i18n/messages";
-import { chatWithAI } from "@/mock/services";
+import { chatWithQwen } from "@/lib/services";
 import { useQrCreateStore } from "@/store/qr-create-store";
 import type { QRRuleMode } from "@/types/qr";
 
@@ -94,7 +94,7 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
 
     addMessage({ id: crypto.randomUUID(), role: "user", content: input });
     setLoading(true);
-    const result = await chatWithAI(input);
+    const result = await chatWithQwen(input);
     addMessage({ id: crypto.randomUUID(), role: "assistant", content: result.reply });
     updateDraft(result.draft);
     setInput("");

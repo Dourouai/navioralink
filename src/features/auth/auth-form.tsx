@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import type { Locale } from "@/i18n/config";
 import { withLocale } from "@/i18n/config";
 import { getMessages } from "@/i18n/messages";
-import { login, register as registerUser } from "@/mock/services";
+import { login, register as registerUser } from "@/lib/services";
 import { useAuthStore } from "@/store/auth-store";
 
 interface AuthFormProps {

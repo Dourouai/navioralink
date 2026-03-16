@@ -44,7 +44,7 @@ export function AppShell({ locale, children }: AppShellProps) {
         <AppLogo href={withLocale(locale, "/dashboard")} subtitle="Dynamic QR workspace" />
         <nav className="mt-8 space-y-2">
           {items.map((item, index) => {
-            const active = pathname.startsWith(item.href);
+            const active = pathname ? pathname.startsWith(item.href) : false;
             return (
               <Link
                 key={item.href}

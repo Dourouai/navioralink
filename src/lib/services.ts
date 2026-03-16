@@ -38,3 +38,22 @@ export async function chatWithAI(input: string) {
     draft: defaultDraft,
   };
 }
+
+// Qwen API集成（前端调用后端代理）
+export async function chatWithQwen(input: string) {
+  const res = await fetch("/api/qwen", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      messages: [{ role: "user", content: input }],
+    }),
+  });
+  const data = await res.json();
+  const reply = data.choices?.[0]?.message?.content || "AI未返回内容";
+  return {
+    reply,
+    draft: defaultDraft,
+  };
+}
