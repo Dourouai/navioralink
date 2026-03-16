@@ -1,8 +1,8 @@
 import { analyticsOverview, rankingData, trendData } from "@/mock/analytics";
 import { mockUser } from "@/mock/auth";
 import { dashboardStats } from "@/mock/dashboard";
-import { defaultDraft } from "@/mock/ai";
 import { mockQrList } from "@/mock/qrs";
+import type { QRDraftFromAI } from "@/types/ai";
 
 const wait = async (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -31,29 +31,18 @@ export async function getAnalyticsOverview() {
   return { overview: analyticsOverview, trendData, rankingData };
 }
 
-export async function chatWithAI(input: string) {
-  await wait(450);
-  return {
-    reply: `我已经记录你的补充：“${input}”。接下来你可以继续补充规则，或者进入确认草稿。`,
-    draft: defaultDraft,
-  };
-}
-
-// Qwen API集成（前端调用后端代理）
-export async function chatWithQwen(input: string) {
+export async function chatWithQwen(
+  messages: Array<{ role: "user" | "assistant"; content: string }>,
+  locale: string
+): Promise<{ reply: string; draft: Partial<QRDraftFromAI> }> {
   const res = await fetch("/api/qwen", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      messages: [{ role: "user", content: input }],
-    }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages, locale }),
   });
   const data = await res.json();
-  const reply = data.choices?.[0]?.message?.content || "AI未返回内容";
   return {
-    reply,
-    draft: defaultDraft,
+    reply: data.reply ?? "AI\u672a\u8fd4\u56de\u5185\u5bb9",
+    draft: data.draft ?? {},
   };
 }

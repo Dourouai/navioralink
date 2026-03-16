@@ -1,15 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Check, Palette, Plus, Sparkles, Trash2, Wand2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Check, ChevronDown, Palette, Plus, Sparkles, Trash2, Wand2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import type { Locale } from "@/i18n/config";
 import { getMessages } from "@/i18n/messages";
 import { chatWithQwen } from "@/lib/services";
+import { COUNTRIES } from "@/lib/countries";
+import { LANGUAGES } from "@/lib/languages";
 import { useQrCreateStore } from "@/store/qr-create-store";
 import type { QRRuleMode } from "@/types/qr";
 
@@ -74,6 +77,24 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
   } = useQrCreateStore();
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [ruleOpen, setRuleOpen] = useState(false);
+  const [trackingOpen, setTrackingOpen] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [expiresOpen, setExpiresOpen] = useState(false);
+
+  // Auto-open sections when AI fills them in
+  useEffect(() => {
+    if (draft.ruleMode && draft.ruleMode !== "none") setRuleOpen(true);
+  }, [draft.ruleMode]);
+  useEffect(() => {
+    if (draft.tracking?.enabled) setTrackingOpen(true);
+  }, [draft.tracking?.enabled]);
+  useEffect(() => {
+    if (draft.password) setPasswordOpen(true);
+  }, [draft.password]);
+  useEffect(() => {
+    if (draft.expiresAt) setExpiresOpen(true);
+  }, [draft.expiresAt]);
 
   const recognizedCount = useMemo(() => {
     const fields = [
@@ -92,12 +113,18 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
   async function submitMessage() {
     if (!input.trim()) return;
 
-    addMessage({ id: crypto.randomUUID(), role: "user", content: input });
-    setLoading(true);
-    const result = await chatWithQwen(input);
-    addMessage({ id: crypto.randomUUID(), role: "assistant", content: result.reply });
-    updateDraft(result.draft);
+    const userMsg = { id: crypto.randomUUID(), role: "user" as const, content: input };
+    addMessage(userMsg);
     setInput("");
+    setLoading(true);
+
+    const history = [...messages, userMsg].map(({ role, content }) => ({ role, content }));
+    const result = await chatWithQwen(history, locale);
+
+    addMessage({ id: crypto.randomUUID(), role: "assistant", content: result.reply });
+    if (Object.keys(result.draft).length > 0) {
+      updateDraft(result.draft);
+    }
     setLoading(false);
   }
 
@@ -174,6 +201,12 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
               </div>
 
               <div className="space-y-3">
+                <div className="max-w-[86%] ml-auto rounded-[24px] px-4 py-4 text-sm leading-7 shadow-[0_10px_24px_rgba(31,55,92,0.04)] bg-[linear-gradient(135deg,rgba(99,188,248,0.12),rgba(141,121,255,0.08))] ring-1 ring-[rgba(145,180,247,0.28)]">
+                  <div className="mb-1 text-xs uppercase tracking-[0.16em] text-slate-400">AI</div>
+                  {locale === "zh-Hant"
+                    ? "告訴我你的二維碼要跳轉到哪個網址，我幫你生成。"
+                    : "Tell me the URL you want this QR code to redirect to and I'll set it up for you."}
+                </div>
                 {messages.map((message) => (
                   <div
                     key={message.id}
@@ -200,6 +233,12 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
                     }
                     value={input}
                     onChange={(event) => setInput(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !event.shiftKey) {
+                        event.preventDefault();
+                        if (!loading) submitMessage();
+                      }
+                    }}
                   />
                   <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                     <div className="text-sm text-slate-500">
@@ -224,15 +263,16 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
               <div>
                 <h2 className="text-xl font-semibold text-slate-900">{t.create.step2Title}</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  {locale === "zh-Hant"
-                    ? "確認基礎資訊後，切換並編輯規則模式。"
-                    : "Review base fields first, then update routing modes and rule items."}
+                  {locale === "zh-Hant" ? "確認必填資訊，其他選項可按需展開。" : "Fill in the required fields. Expand optional settings as needed."}
                 </p>
               </div>
 
+              {/* Required: Basic info */}
               <section className="rounded-[24px] border border-white/80 bg-white p-5 shadow-sm">
                 <div className="mb-4 flex items-center justify-between">
-                  <div className="text-base font-semibold text-slate-900">Basic information</div>
+                  <div className="text-base font-semibold text-slate-900">
+                    {locale === "zh-Hant" ? "基本資訊" : "Basic information"}
+                  </div>
                   <Badge tone="info">{t.common.required}</Badge>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
@@ -241,155 +281,213 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
                 </div>
               </section>
 
-              <section className="rounded-[24px] border border-white/80 bg-white p-5 shadow-sm">
-                <div className="mb-4 text-base font-semibold text-slate-900">
-                  {locale === "zh-Hant" ? "規則模式" : "Rule mode"}
-                </div>
-                <div className="grid gap-3 md:grid-cols-3">
-                  {(["language", "region", "none"] as const).map((mode) => (
-                    <button
-                      key={mode}
-                      className={`rounded-[20px] px-4 py-4 text-left ring-1 transition ${
-                        draft.ruleMode === mode
-                          ? "bg-[linear-gradient(135deg,rgba(18,119,255,0.12),rgba(8,184,164,0.1))] ring-sky-100"
-                          : "bg-white ring-slate-100"
-                      }`}
-                      onClick={() => setRuleMode(mode)}
-                    >
-                      <div className="text-sm font-semibold text-slate-900">
-                        {mode === "language" ? (locale === "zh-Hant" ? "語言模式" : "Language") : null}
-                        {mode === "region" ? (locale === "zh-Hant" ? "國家或地區模式" : "Region") : null}
-                        {mode === "none" ? (locale === "zh-Hant" ? "關閉規則模式" : "No rule mode") : null}
+              {/* Collapsible: Rule mode */}
+              <section className="rounded-[24px] border border-white/80 bg-white shadow-sm overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setRuleOpen((v) => !v)}
+                  className="flex w-full items-center justify-between px-5 py-4 text-left"
+                >
+                  <div>
+                    <div className="text-base font-semibold text-slate-900">
+                      {locale === "zh-Hant" ? "訪問規則" : "Routing rules"}
+                    </div>
+                    <div className="mt-0.5 text-xs text-slate-400">
+                      {draft.ruleMode && draft.ruleMode !== "none"
+                        ? draft.ruleMode === "language"
+                          ? locale === "zh-Hant" ? "語言模式已啟用" : "Language mode on"
+                          : locale === "zh-Hant" ? "地區模式已啟用" : "Region mode on"
+                        : locale === "zh-Hant" ? "預設關閉，所有訪客使用同一連結" : "Off by default — all visitors use the same URL"}
+                    </div>
+                  </div>
+                  <ChevronDown size={16} className={`text-slate-400 transition-transform ${ruleOpen ? "rotate-180" : ""}`} />
+                </button>
+                {ruleOpen ? (
+                  <div className="border-t border-slate-100 px-5 pb-5 pt-4 space-y-4">
+                    <div className="grid gap-3 md:grid-cols-3">
+                      {(["none", "language", "region"] as const).map((mode) => (
+                        <button
+                          key={mode}
+                          className={`rounded-[20px] px-4 py-4 text-left ring-1 transition ${
+                            (draft.ruleMode ?? "none") === mode
+                              ? "bg-[linear-gradient(135deg,rgba(18,119,255,0.12),rgba(8,184,164,0.1))] ring-sky-100"
+                              : "bg-white ring-slate-100"
+                          }`}
+                          onClick={() => setRuleMode(mode)}
+                        >
+                          <div className="text-sm font-semibold text-slate-900">
+                            {mode === "none" ? (locale === "zh-Hant" ? "關閉" : "Off") : null}
+                            {mode === "language" ? (locale === "zh-Hant" ? "語言" : "Language") : null}
+                            {mode === "region" ? (locale === "zh-Hant" ? "國家/地區" : "Region") : null}
+                          </div>
+                          <div className="mt-1 text-xs text-slate-500">
+                            {mode === "none"
+                              ? locale === "zh-Hant" ? "統一跳轉" : "Single URL"
+                              : locale === "zh-Hant" ? "與其他模式互斥" : "Mutually exclusive"}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+
+                    {draft.ruleMode === "language" ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm font-medium text-slate-700">
+                            {locale === "zh-Hant" ? "語言規則" : "Language rules"}
+                          </div>
+                          <Button variant="secondary" icon={<Plus size={14} />} onClick={addLanguageRule}>
+                            {t.create.addLanguage}
+                          </Button>
+                        </div>
+                        {draft.languageRules?.map((rule, index) => (
+                          <div key={`lang-${index}`} className="grid gap-3 rounded-[20px] bg-slate-50/85 p-4 ring-1 ring-slate-100 md:grid-cols-[220px_1fr_auto]">
+                            <SearchableSelect
+                              label={t.create.language}
+                              value={rule.language}
+                              options={LANGUAGES.map((l) => ({ value: l.code, label: locale === "zh-Hant" ? l["zh-Hant"] : l.en }))}
+                              placeholder={locale === "zh-Hant" ? "選擇語言" : "Select language"}
+                              searchPlaceholder={locale === "zh-Hant" ? "搜索語言…" : "Search language…"}
+                              onChange={(val) => updateLanguageRule(index, { language: val })}
+                            />
+                            <Input label="URL" value={rule.url} onChange={(e) => updateLanguageRule(index, { url: e.target.value })} />
+                            <Button variant="ghost" className="mt-7 text-rose-600" onClick={() => removeLanguageRule(index)} icon={<Trash2 size={14} />}>
+                              {t.common.remove}
+                            </Button>
+                          </div>
+                        ))}
                       </div>
-                      <div className="mt-1 text-xs text-slate-500">
-                        {mode === "none"
-                          ? locale === "zh-Hant"
-                            ? "僅保留 Default URL"
-                            : "Use default URL only"
-                          : locale === "zh-Hant"
-                          ? "與其他模式互斥"
-                          : "Mutually exclusive"}
+                    ) : null}
+
+                    {draft.ruleMode === "region" ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm font-medium text-slate-700">
+                            {locale === "zh-Hant" ? "國家/地區規則" : "Region rules"}
+                          </div>
+                          <Button variant="secondary" icon={<Plus size={14} />} onClick={addRegionRule}>
+                            {t.create.addRegion}
+                          </Button>
+                        </div>
+                        {draft.regionRules?.map((rule, index) => (
+                          <div key={`region-${index}`} className="grid gap-3 rounded-[20px] bg-slate-50/85 p-4 ring-1 ring-slate-100 md:grid-cols-[220px_1fr_auto]">
+                            <SearchableSelect
+                              label={t.create.region}
+                              value={rule.region}
+                              options={COUNTRIES.map((c) => ({ value: c.code, label: locale === "zh-Hant" ? c["zh-Hant"] : c.en }))}
+                              placeholder={locale === "zh-Hant" ? "選擇國家/地區" : "Select country / region"}
+                              searchPlaceholder={locale === "zh-Hant" ? "搜索國家/地區…" : "Search country / region…"}
+                              onChange={(val) => updateRegionRule(index, { region: val })}
+                            />
+                            <Input label="URL" value={rule.url} onChange={(e) => updateRegionRule(index, { url: e.target.value })} />
+                            <Button variant="ghost" className="mt-7 text-rose-600" onClick={() => removeRegionRule(index)} icon={<Trash2 size={14} />}>
+                              {t.common.remove}
+                            </Button>
+                          </div>
+                        ))}
                       </div>
-                    </button>
-                  ))}
-                </div>
+                    ) : null}
+                  </div>
+                ) : null}
               </section>
 
-              {draft.ruleMode === "language" ? (
-                <section className="rounded-[24px] border border-white/80 bg-white p-5 shadow-sm">
-                  <div className="mb-4 flex items-center justify-between">
-                    <div className="text-base font-semibold text-slate-900">
-                      {locale === "zh-Hant" ? "語言規則" : "Language rules"}
-                    </div>
-                    <Button variant="secondary" icon={<Plus size={14} />} onClick={addLanguageRule}>
-                      {t.create.addLanguage}
-                    </Button>
-                  </div>
-                  <div className="space-y-3">
-                    {draft.languageRules?.map((rule, index) => (
-                      <div key={`lang-${index}`} className="grid gap-3 rounded-[20px] bg-slate-50/85 p-4 ring-1 ring-slate-100 md:grid-cols-[200px_1fr_auto]">
-                        <Input label={t.create.language} value={rule.language} onChange={(event) => updateLanguageRule(index, { language: event.target.value })} />
-                        <Input label="URL" value={rule.url} onChange={(event) => updateLanguageRule(index, { url: event.target.value })} />
-                        <Button variant="ghost" className="mt-7 text-rose-600" onClick={() => removeLanguageRule(index)} icon={<Trash2 size={14} />}>
-                          {t.common.remove}
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              ) : null}
-
-              {draft.ruleMode === "region" ? (
-                <section className="rounded-[24px] border border-white/80 bg-white p-5 shadow-sm">
-                  <div className="mb-4 flex items-center justify-between">
-                    <div className="text-base font-semibold text-slate-900">
-                      {locale === "zh-Hant" ? "國家或地區規則" : "Region rules"}
-                    </div>
-                    <Button variant="secondary" icon={<Plus size={14} />} onClick={addRegionRule}>
-                      {t.create.addRegion}
-                    </Button>
-                  </div>
-                  <div className="space-y-3">
-                    {draft.regionRules?.map((rule, index) => (
-                      <div key={`region-${index}`} className="grid gap-3 rounded-[20px] bg-slate-50/85 p-4 ring-1 ring-slate-100 md:grid-cols-[200px_1fr_auto]">
-                        <Input label={t.create.region} value={rule.region} onChange={(event) => updateRegionRule(index, { region: event.target.value })} />
-                        <Input label="URL" value={rule.url} onChange={(event) => updateRegionRule(index, { url: event.target.value })} />
-                        <Button variant="ghost" className="mt-7 text-rose-600" onClick={() => removeRegionRule(index)} icon={<Trash2 size={14} />}>
-                          {t.common.remove}
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              ) : null}
-
-              <section className="rounded-[24px] border border-white/80 bg-white p-5 shadow-sm">
-                <div className="mb-4 flex items-center justify-between">
+              {/* Collapsible: Tracking */}
+              <section className="rounded-[24px] border border-white/80 bg-white shadow-sm overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setTrackingOpen((v) => !v)}
+                  className="flex w-full items-center justify-between px-5 py-4 text-left"
+                >
                   <div>
                     <div className="text-base font-semibold text-slate-900">{t.create.tracking}</div>
-                    <div className="mt-1 text-sm text-slate-500">{t.create.trackingHint}</div>
+                    <div className="mt-0.5 text-xs text-slate-400">
+                      {draft.tracking?.enabled
+                        ? locale === "zh-Hant" ? "已啟用" : "Enabled"
+                        : locale === "zh-Hant" ? "預設關閉" : "Off by default"}
+                    </div>
+                  </div>
+                  <ChevronDown size={16} className={`text-slate-400 transition-transform ${trackingOpen ? "rotate-180" : ""}`} />
+                </button>
+                {trackingOpen ? (
+                  <div className="border-t border-slate-100 px-5 pb-5 pt-4 grid gap-4 md:grid-cols-2">
+                    <Input
+                      label="GA4 Measurement ID"
+                      value={draft.tracking?.ga4Id ?? ""}
+                      onChange={(e) => updateDraft({ tracking: { ...draft.tracking, enabled: true, ga4Id: e.target.value } })}
+                    />
+                    <Input
+                      label="Meta Pixel ID"
+                      value={draft.tracking?.metaPixelId ?? ""}
+                      onChange={(e) => updateDraft({ tracking: { ...draft.tracking, enabled: true, metaPixelId: e.target.value } })}
+                    />
+                  </div>
+                ) : null}
+              </section>
+
+              {/* Toggle: Password */}
+              <section className="rounded-[24px] border border-white/80 bg-white p-5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-base font-semibold text-slate-900">{t.create.password}</div>
+                    <div className="mt-0.5 text-xs text-slate-400">
+                      {locale === "zh-Hant" ? "訪客掃碼前需輸入密碼" : "Require a password before redirecting"}
+                    </div>
                   </div>
                   <button
                     type="button"
-                    onClick={() =>
-                      updateDraft({
-                        tracking: {
-                          ...draft.tracking,
-                          enabled: !draft.tracking?.enabled,
-                        },
-                      })
-                    }
-                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                      draft.tracking?.enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
-                    }`}
+                    onClick={() => {
+                      setPasswordOpen((v) => {
+                        if (v) updateDraft({ password: undefined });
+                        return !v;
+                      });
+                    }}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${passwordOpen ? "bg-sky-500" : "bg-slate-200"}`}
                   >
-                    {draft.tracking?.enabled ? t.common.enabled : t.common.disabled}
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${passwordOpen ? "translate-x-6" : "translate-x-1"}`} />
                   </button>
                 </div>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <Input
-                    label="GA4 Measurement ID"
-                    value={draft.tracking?.ga4Id ?? ""}
-                    onChange={(event) =>
-                      updateDraft({
-                        tracking: {
-                          ...draft.tracking,
-                          enabled: true,
-                          ga4Id: event.target.value,
-                        },
-                      })
-                    }
-                  />
-                  <Input
-                    label="Meta Pixel ID"
-                    value={draft.tracking?.metaPixelId ?? ""}
-                    onChange={(event) =>
-                      updateDraft({
-                        tracking: {
-                          ...draft.tracking,
-                          enabled: true,
-                          metaPixelId: event.target.value,
-                        },
-                      })
-                    }
-                  />
-                </div>
+                {passwordOpen ? (
+                  <div className="mt-4">
+                    <Input
+                      label={t.create.password}
+                      value={draft.password ?? ""}
+                      onChange={(e) => updateDraft({ password: e.target.value })}
+                    />
+                  </div>
+                ) : null}
               </section>
 
+              {/* Toggle: Expiration */}
               <section className="rounded-[24px] border border-white/80 bg-white p-5 shadow-sm">
-                <div className="mb-4 text-base font-semibold text-slate-900">
-                  {locale === "zh-Hant" ? "其他設定" : "Other options"}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-base font-semibold text-slate-900">{t.create.expirationDate}</div>
+                    <div className="mt-0.5 text-xs text-slate-400">
+                      {locale === "zh-Hant" ? "到期後二維碼自動失效" : "QR code expires and stops redirecting"}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExpiresOpen((v) => {
+                        if (v) updateDraft({ expiresAt: undefined });
+                        return !v;
+                      });
+                    }}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${expiresOpen ? "bg-sky-500" : "bg-slate-200"}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${expiresOpen ? "translate-x-6" : "translate-x-1"}`} />
+                  </button>
                 </div>
-                <div className="grid gap-4 md:grid-cols-3">
-                  <Input label={t.create.password} value={draft.password ?? ""} onChange={(event) => updateDraft({ password: event.target.value })} />
-                  <Input label={t.create.folder} value={draft.folder ?? ""} onChange={(event) => updateDraft({ folder: event.target.value })} />
-                  <Input
-                    type="date"
-                    label={t.create.expirationDate}
-                    value={draft.expiresAt ?? ""}
-                    onChange={(event) => updateDraft({ expiresAt: event.target.value })}
-                  />
-                </div>
+                {expiresOpen ? (
+                  <div className="mt-4">
+                    <Input
+                      type="date"
+                      label={t.create.expirationDate}
+                      value={draft.expiresAt ?? ""}
+                      onChange={(e) => updateDraft({ expiresAt: e.target.value })}
+                    />
+                  </div>
+                ) : null}
               </section>
 
               <div className="flex justify-between">

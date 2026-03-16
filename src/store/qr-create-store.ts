@@ -2,9 +2,10 @@
 
 import { create } from "zustand";
 
-import { defaultConversation, defaultDraft } from "@/mock/ai";
 import type { ChatMessage, QRDraftFromAI } from "@/types/ai";
 import type { QRDesign } from "@/types/qr";
+
+const initialMessages: ChatMessage[] = [];
 
 interface QrCreateState {
   step: number;
@@ -25,8 +26,8 @@ interface QrCreateState {
 
 export const useQrCreateStore = create<QrCreateState>((set) => ({
   step: 1,
-  messages: defaultConversation,
-  draft: defaultDraft,
+  messages: initialMessages,
+  draft: { ruleMode: "none" },
   design: {
     qrStyle: "rounded",
     borderColor: "#0f172a",
