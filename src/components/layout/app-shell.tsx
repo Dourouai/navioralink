@@ -1,0 +1,118 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { ChevronUp, LogOut, Settings, Zap } from "lucide-react";
+import { useState } from "react";
+
+import { AppLogo } from "@/components/shared/app-logo";
+import type { Locale } from "@/i18n/config";
+import { withLocale } from "@/i18n/config";
+import { getMessages } from "@/i18n/messages";
+import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/store/auth-store";
+
+import { LanguageSwitcher } from "./language-switcher";
+
+interface AppShellProps {
+  locale: Locale;
+  children: React.ReactNode;
+}
+
+export function AppShell({ locale, children }: AppShellProps) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const t = getMessages(locale);
+  const user = useAuthStore((state) => state.user);
+  const clearSession = useAuthStore((state) => state.clearSession);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const items = [
+    { key: "dashboard", href: withLocale(locale, "/dashboard"), label: t.nav.dashboard },
+    { key: "create", href: withLocale(locale, "/qrs/new"), label: t.nav.create },
+    { key: "qrs", href: withLocale(locale, "/qrs"), label: t.nav.qrs },
+    { key: "analytics", href: withLocale(locale, "/analytics"), label: t.nav.analytics },
+  ] as const;
+
+  function logout() {
+    clearSession();
+    router.push(withLocale(locale, "/login"));
+  }
+
+  return (
+    <div className="mx-auto flex min-h-screen w-full max-w-[1600px] gap-6 px-3 py-4 md:px-5">
+      <aside className="hidden w-[280px] shrink-0 rounded-[34px] bg-[linear-gradient(180deg,rgba(255,255,255,0.78),rgba(247,251,255,0.9))] p-5 shadow-[0_24px_50px_rgba(31,55,92,0.06)] ring-1 ring-white/85 lg:sticky lg:top-4 lg:flex lg:h-[calc(100vh-2rem)] lg:flex-col">
+        <AppLogo href={withLocale(locale, "/dashboard")} subtitle="Dynamic QR workspace" />
+        <nav className="mt-8 space-y-2">
+          {items.map((item, index) => {
+            const active = pathname.startsWith(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex items-center gap-3 rounded-[20px] px-4 py-3 text-sm font-medium transition",
+                  active
+                    ? "bg-[linear-gradient(135deg,rgba(99,188,248,0.16),rgba(141,121,255,0.11))] text-sky-700 shadow-[0_10px_22px_rgba(95,150,255,0.06)]"
+                    : "text-slate-600 hover:bg-white/78",
+                )}
+              >
+                <span
+                  className={cn(
+                    "h-2.5 w-2.5 rounded-full transition",
+                    active ? "bg-[linear-gradient(135deg,#3eb9f3_0%,#8b7cfb_100%)]" : index % 2 === 0 ? "bg-slate-300" : "bg-slate-200",
+                  )}
+                />
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+        <div className="relative mt-auto">
+          {menuOpen ? (
+            <div className="absolute bottom-[calc(100%+12px)] left-0 right-0 rounded-[24px] bg-white/96 p-2 shadow-[0_20px_40px_rgba(31,55,92,0.08)] ring-1 ring-[rgba(190,206,226,0.45)] backdrop-blur-xl">
+              <button className="flex w-full items-center justify-between rounded-[18px] px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+                <span>{t.common.upgrade}</span>
+                <Zap size={15} className="text-sky-600" />
+              </button>
+              <button className="flex w-full items-center justify-between rounded-[18px] px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+                <span>{t.common.settings}</span>
+                <Settings size={15} className="text-slate-500" />
+              </button>
+              <button
+                type="button"
+                onClick={logout}
+                className="flex w-full items-center justify-between rounded-[18px] px-4 py-3 text-sm font-medium text-rose-600 transition hover:bg-rose-50"
+              >
+                <span>{t.common.logout}</span>
+                <LogOut size={15} />
+              </button>
+            </div>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setMenuOpen((value) => !value)}
+            className="flex w-full items-center gap-3 rounded-[24px] bg-white/90 px-4 py-4 text-left shadow-[0_12px_24px_rgba(31,55,92,0.05)] ring-1 ring-[rgba(190,206,226,0.45)] transition hover:bg-white"
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-[18px] bg-[linear-gradient(135deg,#e9f6ff_0%,#f2efff_100%)] text-sm font-semibold text-sky-700">
+              {user?.name?.slice(0, 1) ?? "Z"}
+            </div>
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold text-slate-900">{user?.name ?? "Zaps User"}</div>
+              <div className="truncate text-xs text-slate-500">{user?.email ?? "hello@zapsqr.com"}</div>
+            </div>
+            <div className="ml-auto flex h-9 w-9 items-center justify-center rounded-[14px] bg-slate-50 text-slate-500 ring-1 ring-slate-200">
+              <ChevronUp size={16} className={cn("transition", menuOpen ? "rotate-0" : "rotate-180")} />
+            </div>
+          </button>
+        </div>
+      </aside>
+      <div className="min-w-0 flex flex-1 flex-col">
+        <div className="flex-1">{children}</div>
+        <footer className="mt-6 flex items-center justify-between gap-4 rounded-[26px] bg-[linear-gradient(180deg,rgba(255,255,255,0.76),rgba(245,249,255,0.84))] px-4 py-3 shadow-[0_10px_24px_rgba(15,23,42,0.04)] ring-1 ring-white/80 md:px-5">
+          <div className="text-sm font-medium text-slate-500">Zaps Smart QR</div>
+          <LanguageSwitcher locale={locale} />
+        </footer>
+      </div>
+    </div>
+  );
+}

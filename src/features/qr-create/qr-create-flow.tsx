@@ -1,0 +1,603 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { Check, Palette, Plus, Sparkles, Trash2, Wand2 } from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import type { Locale } from "@/i18n/config";
+import { getMessages } from "@/i18n/messages";
+import { chatWithAI } from "@/mock/services";
+import { useQrCreateStore } from "@/store/qr-create-store";
+import type { QRRuleMode } from "@/types/qr";
+
+interface QrCreateFlowProps {
+  locale: Locale;
+}
+
+const qrStyles = [
+  { id: "classic", label: "Classic", symbol: "▦" },
+  { id: "rounded", label: "Rounded", symbol: "◼︎" },
+  { id: "dots", label: "Dots", symbol: "⋮" },
+  { id: "pixel", label: "Pixel", symbol: "▣" },
+  { id: "line", label: "Line", symbol: "≣" },
+  { id: "star", label: "Spark", symbol: "✦" },
+];
+
+const borderCornerStyles = [
+  { id: "square", label: "Square", symbol: "□" },
+  { id: "rounded", label: "Rounded", symbol: "◯" },
+  { id: "thick", label: "Thick", symbol: "▣" },
+  { id: "dot", label: "Dot", symbol: "◉" },
+];
+
+const centerCornerStyles = [
+  { id: "square", label: "Square", symbol: "■" },
+  { id: "dot", label: "Dot", symbol: "●" },
+  { id: "diamond", label: "Diamond", symbol: "◆" },
+  { id: "star", label: "Star", symbol: "★" },
+];
+
+const correctionLevels = [
+  { id: "Q", label: "Level Q", note: "25%" },
+  { id: "H", label: "Level H", note: "30%" },
+  { id: "M", label: "Level M", note: "15%" },
+  { id: "L", label: "Level L", note: "7%" },
+] as const;
+
+const logoOptions = [
+  { id: "none", label: "None", icon: "⊘" },
+  { id: "spark", label: "Spark", icon: "✦" },
+  { id: "link", label: "Link", icon: "🔗" },
+  { id: "pin", label: "Pin", icon: "📍" },
+];
+
+export function QrCreateFlow({ locale }: QrCreateFlowProps) {
+  const t = getMessages(locale);
+  const {
+    step,
+    messages,
+    draft,
+    design,
+    setStep,
+    addMessage,
+    updateDraft,
+    updateDesign,
+    updateLanguageRule,
+    addLanguageRule,
+    removeLanguageRule,
+    updateRegionRule,
+    addRegionRule,
+    removeRegionRule,
+  } = useQrCreateStore();
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const recognizedCount = useMemo(() => {
+    const fields = [
+      draft.name,
+      draft.defaultUrl,
+      draft.ruleMode,
+      draft.languageRules?.length ? "language" : undefined,
+      draft.regionRules?.length ? "region" : undefined,
+      draft.tracking?.enabled ? "tracking" : undefined,
+      draft.password,
+      draft.expiresAt,
+    ];
+    return fields.filter(Boolean).length;
+  }, [draft]);
+
+  async function submitMessage() {
+    if (!input.trim()) return;
+
+    addMessage({ id: crypto.randomUUID(), role: "user", content: input });
+    setLoading(true);
+    const result = await chatWithAI(input);
+    addMessage({ id: crypto.randomUUID(), role: "assistant", content: result.reply });
+    updateDraft(result.draft);
+    setInput("");
+    setLoading(false);
+  }
+
+  function setRuleMode(mode: QRRuleMode) {
+    if (mode === "language") {
+      updateDraft({ ruleMode: mode, regionRules: [] });
+      return;
+    }
+    if (mode === "region") {
+      updateDraft({ ruleMode: mode, languageRules: [] });
+      return;
+    }
+    updateDraft({ ruleMode: mode, languageRules: [], regionRules: [] });
+  }
+
+  const canEnterReview = Boolean(draft.defaultUrl);
+
+  return (
+    <div className="space-y-6">
+      <section className="rounded-[30px] border border-white/70 bg-white/75 p-5 shadow-[0_20px_60px_rgba(15,23,42,0.05)] backdrop-blur-xl">
+        <div className="grid gap-3 md:grid-cols-3">
+          {t.create.steps.map((item, index) => {
+            const active = step === index + 1;
+            const done = step > index + 1;
+            return (
+              <button
+                key={item}
+                onClick={() => setStep(index + 1)}
+                className={`rounded-[24px] px-5 py-5 text-left transition ${
+                  active
+                    ? "bg-[linear-gradient(135deg,rgba(99,188,248,0.16),rgba(141,121,255,0.1))] ring-1 ring-[rgba(145,180,247,0.3)]"
+                    : done
+                    ? "bg-emerald-50 ring-1 ring-emerald-100"
+                    : "bg-[linear-gradient(180deg,rgba(255,255,255,0.72),rgba(250,252,255,0.86))] ring-1 ring-[rgba(190,206,226,0.4)]"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span
+                    className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold ${
+                      done
+                        ? "bg-emerald-500 text-white"
+                        : active
+                        ? "bg-[linear-gradient(135deg,#26bdf0_0%,#8b7cfb_100%)] text-white"
+                        : "bg-white text-slate-500 ring-1 ring-slate-200"
+                    }`}
+                  >
+                    {done ? <Check size={16} /> : index + 1}
+                  </span>
+                  <span className="text-xs uppercase tracking-[0.16em] text-slate-400">
+                    {index === 0 ? "Describe" : index === 1 ? "Review" : "Design"}
+                  </span>
+                </div>
+                <div className="mt-4 text-base font-medium text-slate-800">{item}</div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <div className="grid gap-6 xl:grid-cols-[1fr_340px]">
+        <Card className="space-y-5">
+          {step === 1 ? (
+            <>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-900">{t.create.step1Title}</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {locale === "zh-Hant"
+                      ? "先透過多輪對話梳理名稱、預設連結和規則模式。"
+                      : "Use multi-turn conversation to shape name, default URL, and routing mode."}
+                  </p>
+                </div>
+                <Badge tone="info">{messages.length} msgs</Badge>
+              </div>
+
+              <div className="space-y-3">
+                {messages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`max-w-[86%] rounded-[24px] px-4 py-4 text-sm leading-7 shadow-[0_10px_24px_rgba(31,55,92,0.04)] ${
+                      message.role === "user"
+                        ? "bg-white ring-1 ring-[rgba(190,206,226,0.42)]"
+                        : "ml-auto bg-[linear-gradient(135deg,rgba(99,188,248,0.12),rgba(141,121,255,0.08))] ring-1 ring-[rgba(145,180,247,0.28)]"
+                    }`}
+                  >
+                    <div className="mb-1 text-xs uppercase tracking-[0.16em] text-slate-400">{message.role === "user" ? "You" : "AI"}</div>
+                    {message.content}
+                  </div>
+                ))}
+              </div>
+
+              <div className="rounded-[28px] border border-white/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.92),rgba(245,249,255,0.95),rgba(248,244,255,0.92))] p-4 shadow-inner">
+                <div className="rounded-[24px] border border-slate-100 bg-white/95 p-4">
+                  <textarea
+                    className="min-h-[120px] w-full resize-none rounded-[20px] border border-[rgba(190,206,226,0.42)] bg-white px-4 py-3 text-sm outline-none focus:border-sky-300"
+                    placeholder={
+                      locale === "zh-Hant"
+                        ? "繼續補充你的需求，例如：預設網址、語言或國家規則、是否啟用 Tracking。"
+                        : "Keep describing your requirements: default URL, language/region rules, and tracking settings."
+                    }
+                    value={input}
+                    onChange={(event) => setInput(event.target.value)}
+                  />
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                    <div className="text-sm text-slate-500">
+                      {t.create.recognized}: {recognizedCount}
+                    </div>
+                    <div className="flex gap-3">
+                      <Button variant="secondary" onClick={() => setStep(2)} disabled={!canEnterReview}>
+                        {t.create.enterReview}
+                      </Button>
+                      <Button onClick={submitMessage} disabled={loading}>
+                        {loading ? t.common.loading : t.create.send}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : null}
+
+          {step === 2 ? (
+            <>
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">{t.create.step2Title}</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {locale === "zh-Hant"
+                    ? "確認基礎資訊後，切換並編輯規則模式。"
+                    : "Review base fields first, then update routing modes and rule items."}
+                </p>
+              </div>
+
+              <section className="rounded-[24px] border border-white/80 bg-white p-5 shadow-sm">
+                <div className="mb-4 flex items-center justify-between">
+                  <div className="text-base font-semibold text-slate-900">Basic information</div>
+                  <Badge tone="info">{t.common.required}</Badge>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Input label={t.create.qrName} value={draft.name ?? ""} onChange={(event) => updateDraft({ name: event.target.value })} />
+                  <Input label={t.common.defaultUrl} value={draft.defaultUrl ?? ""} onChange={(event) => updateDraft({ defaultUrl: event.target.value })} />
+                </div>
+              </section>
+
+              <section className="rounded-[24px] border border-white/80 bg-white p-5 shadow-sm">
+                <div className="mb-4 text-base font-semibold text-slate-900">
+                  {locale === "zh-Hant" ? "規則模式" : "Rule mode"}
+                </div>
+                <div className="grid gap-3 md:grid-cols-3">
+                  {(["language", "region", "none"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      className={`rounded-[20px] px-4 py-4 text-left ring-1 transition ${
+                        draft.ruleMode === mode
+                          ? "bg-[linear-gradient(135deg,rgba(18,119,255,0.12),rgba(8,184,164,0.1))] ring-sky-100"
+                          : "bg-white ring-slate-100"
+                      }`}
+                      onClick={() => setRuleMode(mode)}
+                    >
+                      <div className="text-sm font-semibold text-slate-900">
+                        {mode === "language" ? (locale === "zh-Hant" ? "語言模式" : "Language") : null}
+                        {mode === "region" ? (locale === "zh-Hant" ? "國家或地區模式" : "Region") : null}
+                        {mode === "none" ? (locale === "zh-Hant" ? "關閉規則模式" : "No rule mode") : null}
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        {mode === "none"
+                          ? locale === "zh-Hant"
+                            ? "僅保留 Default URL"
+                            : "Use default URL only"
+                          : locale === "zh-Hant"
+                          ? "與其他模式互斥"
+                          : "Mutually exclusive"}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              {draft.ruleMode === "language" ? (
+                <section className="rounded-[24px] border border-white/80 bg-white p-5 shadow-sm">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div className="text-base font-semibold text-slate-900">
+                      {locale === "zh-Hant" ? "語言規則" : "Language rules"}
+                    </div>
+                    <Button variant="secondary" icon={<Plus size={14} />} onClick={addLanguageRule}>
+                      {t.create.addLanguage}
+                    </Button>
+                  </div>
+                  <div className="space-y-3">
+                    {draft.languageRules?.map((rule, index) => (
+                      <div key={`lang-${index}`} className="grid gap-3 rounded-[20px] bg-slate-50/85 p-4 ring-1 ring-slate-100 md:grid-cols-[200px_1fr_auto]">
+                        <Input label={t.create.language} value={rule.language} onChange={(event) => updateLanguageRule(index, { language: event.target.value })} />
+                        <Input label="URL" value={rule.url} onChange={(event) => updateLanguageRule(index, { url: event.target.value })} />
+                        <Button variant="ghost" className="mt-7 text-rose-600" onClick={() => removeLanguageRule(index)} icon={<Trash2 size={14} />}>
+                          {t.common.remove}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+
+              {draft.ruleMode === "region" ? (
+                <section className="rounded-[24px] border border-white/80 bg-white p-5 shadow-sm">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div className="text-base font-semibold text-slate-900">
+                      {locale === "zh-Hant" ? "國家或地區規則" : "Region rules"}
+                    </div>
+                    <Button variant="secondary" icon={<Plus size={14} />} onClick={addRegionRule}>
+                      {t.create.addRegion}
+                    </Button>
+                  </div>
+                  <div className="space-y-3">
+                    {draft.regionRules?.map((rule, index) => (
+                      <div key={`region-${index}`} className="grid gap-3 rounded-[20px] bg-slate-50/85 p-4 ring-1 ring-slate-100 md:grid-cols-[200px_1fr_auto]">
+                        <Input label={t.create.region} value={rule.region} onChange={(event) => updateRegionRule(index, { region: event.target.value })} />
+                        <Input label="URL" value={rule.url} onChange={(event) => updateRegionRule(index, { url: event.target.value })} />
+                        <Button variant="ghost" className="mt-7 text-rose-600" onClick={() => removeRegionRule(index)} icon={<Trash2 size={14} />}>
+                          {t.common.remove}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+
+              <section className="rounded-[24px] border border-white/80 bg-white p-5 shadow-sm">
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <div className="text-base font-semibold text-slate-900">{t.create.tracking}</div>
+                    <div className="mt-1 text-sm text-slate-500">{t.create.trackingHint}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateDraft({
+                        tracking: {
+                          ...draft.tracking,
+                          enabled: !draft.tracking?.enabled,
+                        },
+                      })
+                    }
+                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                      draft.tracking?.enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+                    }`}
+                  >
+                    {draft.tracking?.enabled ? t.common.enabled : t.common.disabled}
+                  </button>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Input
+                    label="GA4 Measurement ID"
+                    value={draft.tracking?.ga4Id ?? ""}
+                    onChange={(event) =>
+                      updateDraft({
+                        tracking: {
+                          ...draft.tracking,
+                          enabled: true,
+                          ga4Id: event.target.value,
+                        },
+                      })
+                    }
+                  />
+                  <Input
+                    label="Meta Pixel ID"
+                    value={draft.tracking?.metaPixelId ?? ""}
+                    onChange={(event) =>
+                      updateDraft({
+                        tracking: {
+                          ...draft.tracking,
+                          enabled: true,
+                          metaPixelId: event.target.value,
+                        },
+                      })
+                    }
+                  />
+                </div>
+              </section>
+
+              <section className="rounded-[24px] border border-white/80 bg-white p-5 shadow-sm">
+                <div className="mb-4 text-base font-semibold text-slate-900">
+                  {locale === "zh-Hant" ? "其他設定" : "Other options"}
+                </div>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <Input label={t.create.password} value={draft.password ?? ""} onChange={(event) => updateDraft({ password: event.target.value })} />
+                  <Input label={t.create.folder} value={draft.folder ?? ""} onChange={(event) => updateDraft({ folder: event.target.value })} />
+                  <Input
+                    type="date"
+                    label={t.create.expirationDate}
+                    value={draft.expiresAt ?? ""}
+                    onChange={(event) => updateDraft({ expiresAt: event.target.value })}
+                  />
+                </div>
+              </section>
+
+              <div className="flex justify-between">
+                <Button variant="secondary" onClick={() => setStep(1)}>
+                  {t.common.back}
+                </Button>
+                <Button onClick={() => setStep(3)}>{t.common.continue}</Button>
+              </div>
+            </>
+          ) : null}
+
+          {step === 3 ? (
+            <>
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">{t.create.step3Title}</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {locale === "zh-Hant"
+                    ? "第一版聚焦 QR style、Corners、Correction level 和 Logo。"
+                    : "V1 keeps the design surface focused on style, corners, correction level, and logo."}
+                </p>
+              </div>
+
+              <section className="rounded-[24px] border border-white/80 bg-white p-5 shadow-sm">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-[14px] bg-violet-50 text-violet-700 ring-1 ring-violet-100">
+                    <Palette size={18} />
+                  </div>
+                  <div>
+                    <div className="text-base font-semibold text-slate-900">{t.create.qrStyle}</div>
+                    <div className="text-sm text-slate-500">{locale === "zh-Hant" ? "选择缩略图样式并设置基础颜色。" : "Choose a style thumbnail and basic colors."}</div>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                  {qrStyles.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => updateDesign({ qrStyle: item.id })}
+                      className={`rounded-[18px] p-3 ring-1 transition ${
+                        design.qrStyle === item.id
+                          ? "bg-[linear-gradient(135deg,rgba(240,249,255,1),rgba(245,243,255,0.95))] ring-sky-100"
+                          : "bg-slate-50 ring-slate-100"
+                      }`}
+                    >
+                      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white text-xl ring-1 ring-slate-100">
+                        {item.symbol}
+                      </div>
+                      <div className="mt-2 text-center text-sm text-slate-700">{item.label}</div>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <Input label="Border colour" value={design.borderColor ?? ""} onChange={(event) => updateDesign({ borderColor: event.target.value })} />
+                  <Input label="Background colour" value={design.backgroundColor ?? ""} onChange={(event) => updateDesign({ backgroundColor: event.target.value })} />
+                </div>
+              </section>
+
+              <section className="rounded-[24px] border border-white/80 bg-white p-5 shadow-sm">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-[14px] bg-cyan-50 text-cyan-700 ring-1 ring-cyan-100">
+                    <Wand2 size={18} />
+                  </div>
+                  <div className="text-base font-semibold text-slate-900">{t.create.corners}</div>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <div className="mb-2 text-xs uppercase tracking-[0.16em] text-slate-400">Border style</div>
+                    <div className="grid gap-3 sm:grid-cols-4">
+                      {borderCornerStyles.map((item) => (
+                        <button
+                          key={item.id}
+                          onClick={() => updateDesign({ cornerBorderStyle: item.id })}
+                          className={`rounded-[16px] p-3 ring-1 transition ${
+                            design.cornerBorderStyle === item.id ? "bg-sky-50 ring-sky-100 text-sky-700" : "bg-white ring-slate-100 text-slate-700"
+                          }`}
+                        >
+                          <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-lg bg-white text-base ring-1 ring-slate-100">
+                            {item.symbol}
+                          </div>
+                          <div className="mt-2 text-sm">{item.label}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="mb-2 text-xs uppercase tracking-[0.16em] text-slate-400">Center style</div>
+                    <div className="grid gap-3 sm:grid-cols-4">
+                      {centerCornerStyles.map((item) => (
+                        <button
+                          key={item.id}
+                          onClick={() => updateDesign({ cornerCenterStyle: item.id })}
+                          className={`rounded-[16px] p-3 ring-1 transition ${
+                            design.cornerCenterStyle === item.id ? "bg-sky-50 ring-sky-100 text-sky-700" : "bg-white ring-slate-100 text-slate-700"
+                          }`}
+                        >
+                          <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-lg bg-white text-base ring-1 ring-slate-100">
+                            {item.symbol}
+                          </div>
+                          <div className="mt-2 text-sm">{item.label}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section className="rounded-[24px] border border-white/80 bg-white p-5 shadow-sm">
+                <div className="mb-4 text-base font-semibold text-slate-900">{t.create.correctionLevel}</div>
+                <div className="grid gap-3 sm:grid-cols-4">
+                  {correctionLevels.map((level) => (
+                    <button
+                      key={level.id}
+                      onClick={() => updateDesign({ correctionLevel: level.id })}
+                      className={`rounded-[18px] p-4 text-center ring-1 transition ${
+                        design.correctionLevel === level.id
+                          ? "bg-[linear-gradient(135deg,rgba(240,249,255,1),rgba(245,243,255,0.95))] ring-sky-100"
+                          : "bg-slate-50 ring-slate-100"
+                      }`}
+                    >
+                      <div className="mx-auto mb-2 h-10 w-10 rounded-xl bg-white ring-1 ring-slate-100" />
+                      <div className="text-sm font-medium text-slate-800">{level.label}</div>
+                      <div className="mt-1 text-xs text-slate-500">{level.note}</div>
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              <section className="rounded-[24px] border border-white/80 bg-white p-5 shadow-sm">
+                <div className="mb-4 text-base font-semibold text-slate-900">Add logo</div>
+                <div className="grid gap-3 sm:grid-cols-4">
+                  {logoOptions.map((logo) => (
+                    <button
+                      key={logo.id}
+                      onClick={() => updateDesign({ logoType: logo.id })}
+                      className={`rounded-[18px] p-3 ring-1 transition ${
+                        design.logoType === logo.id
+                          ? "bg-[linear-gradient(135deg,rgba(240,249,255,1),rgba(245,243,255,0.95))] ring-sky-100"
+                          : "bg-slate-50 ring-slate-100"
+                      }`}
+                    >
+                      <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-white text-base ring-1 ring-slate-100">
+                        {logo.icon}
+                      </div>
+                      <div className="mt-2 text-sm text-slate-700">{logo.label}</div>
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-4 rounded-[16px] border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+                  {locale === "zh-Hant" ? "上傳 Logo（JPG / PNG / SVG，2MB 內）" : "Upload logo (JPG / PNG / SVG, up to 2MB)."}
+                </div>
+              </section>
+
+              <div className="flex justify-between">
+                <Button variant="secondary" onClick={() => setStep(2)}>
+                  {t.common.back}
+                </Button>
+                <Button>{t.common.generate}</Button>
+              </div>
+            </>
+          ) : null}
+        </Card>
+
+        <div className="space-y-5">
+          <Card>
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+              <Sparkles size={16} className="text-sky-600" />
+              {t.create.hintTitle}
+            </div>
+            <div className="mt-4 space-y-3 text-sm leading-6 text-slate-500">
+              {t.create.hints.map((hint) => (
+                <div key={hint} className="rounded-[18px] bg-white/82 px-4 py-3 ring-1 ring-[rgba(190,206,226,0.4)]">
+                  {hint}
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          {step >= 2 ? (
+            <Card>
+              <div className="text-sm font-semibold text-slate-900">{t.create.designPreview}</div>
+              <div className="mt-4 rounded-[26px] bg-[linear-gradient(135deg,#f7fbff_0%,#edf6ff_48%,#f4f2ff_100%)] p-5">
+                <div className="mx-auto grid h-48 w-48 grid-cols-5 gap-1 rounded-[24px] bg-white p-4 shadow-[0_10px_24px_rgba(15,23,42,0.06)]">
+                  {Array.from({ length: 25 }).map((_, index) => (
+                    <div key={index} className={index % 2 === 0 ? "rounded-[6px] bg-slate-900" : "rounded-[6px] bg-slate-200"} />
+                  ))}
+                </div>
+              </div>
+              <div className="mt-4 space-y-3 text-sm text-slate-600">
+                <div className="flex items-center justify-between">
+                  <span>QR style</span>
+                  <strong>{design.qrStyle ?? "classic"}</strong>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Correction</span>
+                  <strong>{design.correctionLevel ?? "H"}</strong>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Rule mode</span>
+                  <strong>{draft.ruleMode ?? "none"}</strong>
+                </div>
+              </div>
+            </Card>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
