@@ -4,3 +4,7 @@ coverage
 dist
 *.log
 .DS_Store
+.vercel
+.env.local
+.env.*.local
+.tools

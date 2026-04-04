@@ -16,6 +16,8 @@ export function Input({ className, label, hint, error, id, ...props }: InputProp
         id={id}
         className={cn(
           "w-full rounded-[16px] border border-slate-200 bg-white/92 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[rgba(18,119,255,0.5)] focus:ring-4 focus:ring-[rgba(18,119,255,0.12)]",
+          props.readOnly ? "cursor-not-allowed border-slate-200 bg-slate-100/95 text-slate-500 focus:border-slate-200 focus:ring-0" : "",
+          props.disabled ? "cursor-not-allowed border-slate-200 bg-slate-100/95 text-slate-500" : "",
           error ? "border-rose-300 focus:border-rose-400 focus:ring-rose-100" : "",
           className,
         )}

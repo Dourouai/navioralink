@@ -1,7 +1,22 @@
-import { redirect } from "next/navigation";
+import type { Metadata } from "next";
+import { MarketingHeader } from "@/components/layout/marketing-header";
+import { MarketingFooter } from "@/components/layout/marketing-footer";
+import { HomePageContent } from "@/features/marketing/home-page-content";
+import { buildPageMetadata } from "@/lib/metadata";
 
-import { defaultLocale } from "@/i18n/config";
+// Always serve English on the root path
+export const metadata: Metadata = buildPageMetadata("en", "home");
 
 export default function RootPage() {
-  redirect(`/${defaultLocale}`);
+  const locale = "en" as const;
+
+  return (
+    <div className="min-h-screen">
+      <MarketingHeader locale={locale} />
+      <main>
+        <HomePageContent locale={locale} />
+      </main>
+      <MarketingFooter locale={locale} />
+    </div>
+  );
 }

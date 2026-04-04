@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Activity, ArrowRight, BarChart3, FolderKanban, PlusSquare, Sparkles } from "lucide-react";
 
@@ -7,9 +8,15 @@ import { Card } from "@/components/ui/card";
 import type { Locale } from "@/i18n/config";
 import { withLocale } from "@/i18n/config";
 import { getMessages } from "@/i18n/messages";
+import { buildPageMetadata } from "@/lib/metadata";
 import { formatDate, formatNumber } from "@/lib/utils";
 import { dashboardStats } from "@/mock/dashboard";
 import { mockQrList } from "@/mock/qrs";
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: Locale }> }): Promise<Metadata> {
+  const { locale } = await params;
+  return buildPageMetadata(locale, "dashboard");
+}
 
 export default async function DashboardPage({ params }: { params: Promise<{ locale: Locale }> }) {
   const { locale } = await params;
@@ -17,25 +24,27 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
 
   const ruleModeLabel =
     locale === "zh-Hant"
-      ? { none: "無規則", language: "語言模式", region: "國家或地區模式" }
-      : { none: "No rule", language: "Language", region: "Region" };
+      ? { none: "無規則", language: "語言模式", region: "國家或地區模式", device: "設備系統模式", param: "參數模式", ab: "A/B Test" }
+      : locale === "zh-Hans"
+        ? { none: "无规则", language: "语言模式", region: "国家或地区模式", device: "设备系统模式", param: "参数模式", ab: "A/B Test" }
+        : { none: "No rule", language: "Language", region: "Region", device: "Device OS", param: "Param", ab: "A/B Test" };
 
   const quickActions = [
     {
       title: t.nav.create,
-      description: locale === "zh-Hant" ? "進入三步流程，透過 AI 對話快速生成草稿。" : "Enter the 3-step flow and shape a draft with AI conversation.",
+      description: locale === "zh-Hant" ? "進入三步流程，透過 AI 對話快速生成入口草稿。" : "Enter the 3-step flow and shape an entry draft with AI conversation.",
       href: withLocale(locale, "/qrs/new"),
       icon: <Sparkles size={18} className="text-sky-600" />,
     },
     {
       title: t.nav.qrs,
-      description: locale === "zh-Hant" ? "查看列表、編輯規則、刪除草稿或複製連結。" : "Review all QRs, edit rules, remove drafts, and copy links.",
+      description: locale === "zh-Hant" ? "查看列表、編輯規則、歸檔入口或複製連結。" : "Review all entries, edit rules, archive entries, and copy links.",
       href: withLocale(locale, "/qrs"),
       icon: <FolderKanban size={18} className="text-violet-600" />,
     },
     {
       title: t.nav.analytics,
-      description: locale === "zh-Hant" ? "查看 7 天趨勢和活躍二維碼表現。" : "Track 7-day trends and active QR performance.",
+      description: locale === "zh-Hant" ? "查看 7 天趨勢和活躍入口表現。" : "Track 7-day trends and active entry performance.",
       href: withLocale(locale, "/analytics"),
       icon: <BarChart3 size={18} className="text-teal-600" />,
     },
@@ -44,15 +53,21 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
   const activityItems =
     locale === "zh-Hant"
       ? [
-          "過去 24 小時有 3 個二維碼掃碼量上升。",
+          "過去 24 小時有 3 個入口掃碼量上升。",
           "你有 1 個草稿還未完成 Step 3 設計。",
           "最近一次規則更新發生在今天。",
         ]
       : [
-          "3 QR codes increased in scans during the last 24 hours.",
+          "3 entries increased in scans during the last 24 hours.",
           "You still have 1 draft waiting for Step 3 design.",
           "The most recent rule update happened today.",
         ];
+
+  function getStatusTone(status: (typeof mockQrList)[number]["status"]) {
+    if (status === "active") return "success" as const;
+    if (status === "draft" || status === "paused" || status === "archived") return "default" as const;
+    return "danger" as const;
+  }
 
   return (
     <div className="space-y-6">
@@ -99,7 +114,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
         <Card className="rounded-[26px] p-5">
           <div className="text-sm text-slate-500">{t.dashboard.stats.active}</div>
           <div className="mt-3 text-3xl font-semibold text-slate-900">{formatNumber(dashboardStats.activeQrs)}</div>
-          <div className="mt-2 text-sm text-sky-700">{locale === "zh-Hant" ? "可持續營運中的二維碼" : "Live dynamic QR campaigns"}</div>
+          <div className="mt-2 text-sm text-sky-700">{locale === "zh-Hant" ? "可持續營運中的入口" : "Live smart entries"}</div>
         </Card>
         <Card className="rounded-[26px] p-5">
           <div className="text-sm text-slate-500">{t.dashboard.stats.recent}</div>
@@ -141,7 +156,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                 </div>
                 <div className="text-sm text-slate-700">{item.type.toUpperCase()}</div>
                 <div>
-                  <Badge tone={item.status === "active" ? "success" : item.status === "draft" ? "default" : "danger"}>
+                  <Badge tone={getStatusTone(item.status)}>
                     {t.common[item.status]}
                   </Badge>
                 </div>

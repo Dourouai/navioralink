@@ -9,18 +9,18 @@ export const dashboardStats = {
 
 export const quickActions = [
   {
-    title: "新增二维码",
-    description: "通过 AI 对话快速创建一个新的动态 URL 二维码。",
+    title: "创建智能入口",
+    description: "通过 AI 对话快速创建一个新的智能入口。",
     href: "/qrs/new",
   },
   {
-    title: "管理二维码",
+    title: "入口管理",
     description: "查看列表、编辑规则或复制链接。",
     href: "/qrs",
   },
   {
     title: "分析统计",
-    description: "查看最近 7 天趋势和活跃二维码表现。",
+    description: "查看最近 7 天趋势和活跃入口表现。",
     href: "/analytics",
   },
 ];

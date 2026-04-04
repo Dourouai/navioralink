@@ -22,12 +22,19 @@ interface QrCreateState {
   updateRegionRule: (index: number, payload: { region?: string; url?: string }) => void;
   addRegionRule: () => void;
   removeRegionRule: (index: number) => void;
+  updateDeviceRule: (index: number, payload: { os?: string; url?: string }) => void;
+  addDeviceRule: () => void;
+  removeDeviceRule: (index: number) => void;
+  updateParamRule: (index: number, payload: { key?: string; value?: string; url?: string }) => void;
+  addParamRule: () => void;
+  removeParamRule: (index: number) => void;
+  updateAbRule: (index: number, payload: { variant?: "A" | "B"; weight?: number; url?: string }) => void;
 }
 
 export const useQrCreateStore = create<QrCreateState>((set) => ({
   step: 1,
   messages: initialMessages,
-  draft: { ruleMode: "none" },
+  draft: { ruleMode: "none", targetType: "web" },
   design: {
     qrStyle: "rounded",
     borderColor: "#0f172a",
@@ -35,7 +42,8 @@ export const useQrCreateStore = create<QrCreateState>((set) => ({
     cornerBorderStyle: "rounded",
     cornerCenterStyle: "dot",
     correctionLevel: "H",
-    logoType: "spark",
+    logoType: "link",
+    logoUrl: "/assets/qr-logos.svg#link",
   },
   setStep: (step) => set({ step }),
   addMessage: (message) => set((state) => ({ messages: [...state.messages, message] })),
@@ -85,6 +93,61 @@ export const useQrCreateStore = create<QrCreateState>((set) => ({
       draft: {
         ...state.draft,
         regionRules: (state.draft.regionRules ?? []).filter((_, ruleIndex) => ruleIndex !== index),
+      },
+    })),
+  updateDeviceRule: (index, payload) =>
+    set((state) => ({
+      draft: {
+        ...state.draft,
+        deviceRules: (state.draft.deviceRules ?? []).map((rule, ruleIndex) =>
+          ruleIndex === index ? { ...rule, ...payload } : rule,
+        ),
+      },
+    })),
+  addDeviceRule: () =>
+    set((state) => ({
+      draft: {
+        ...state.draft,
+        deviceRules: [...(state.draft.deviceRules ?? []), { os: "", url: "" }],
+      },
+    })),
+  removeDeviceRule: (index) =>
+    set((state) => ({
+      draft: {
+        ...state.draft,
+        deviceRules: (state.draft.deviceRules ?? []).filter((_, ruleIndex) => ruleIndex !== index),
+      },
+    })),
+  updateParamRule: (index, payload) =>
+    set((state) => ({
+      draft: {
+        ...state.draft,
+        paramRules: (state.draft.paramRules ?? []).map((rule, ruleIndex) =>
+          ruleIndex === index ? { ...rule, ...payload } : rule,
+        ),
+      },
+    })),
+  addParamRule: () =>
+    set((state) => ({
+      draft: {
+        ...state.draft,
+        paramRules: [...(state.draft.paramRules ?? []), { key: "", value: "", url: "" }],
+      },
+    })),
+  removeParamRule: (index) =>
+    set((state) => ({
+      draft: {
+        ...state.draft,
+        paramRules: (state.draft.paramRules ?? []).filter((_, ruleIndex) => ruleIndex !== index),
+      },
+    })),
+  updateAbRule: (index, payload) =>
+    set((state) => ({
+      draft: {
+        ...state.draft,
+        abRules: (state.draft.abRules ?? []).map((rule, ruleIndex) =>
+          ruleIndex === index ? { ...rule, ...payload } : rule,
+        ),
       },
     })),
 }));

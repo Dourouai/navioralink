@@ -121,6 +121,29 @@ textarea {
   text-wrap: balance;
 }
 
+.soft-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(135, 162, 196, 0.7) rgba(226, 235, 247, 0.45);
+}
+
+.soft-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.soft-scrollbar::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(226, 235, 247, 0.45);
+}
+
+.soft-scrollbar::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(38, 177, 241, 0.9), rgba(96, 132, 255, 0.9));
+}
+
+.soft-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(28, 164, 226, 0.95), rgba(82, 118, 241, 0.95));
+}
+
 .fade-up {
   animation: fade-up 0.55s ease-out both;
 }
@@ -146,5 +169,139 @@ textarea {
 
   35% {
     transform: translateX(120%);
+  }
+}
+
+.auth-stage {
+  background:
+    radial-gradient(circle at 14% 15%, rgba(118, 180, 255, 0.22), transparent 28%),
+    radial-gradient(circle at 82% 12%, rgba(113, 207, 238, 0.14), transparent 22%),
+    linear-gradient(180deg, #f3f7fc 0%, #f8fbff 45%, #fafcff 100%);
+}
+
+.auth-left-panel {
+  background:
+    linear-gradient(156deg, rgba(230, 238, 252, 0.96) 0%, rgba(220, 235, 255, 0.93) 50%, rgba(212, 228, 250, 0.95) 100%);
+}
+
+.auth-orb {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(2px);
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.auth-orb-one {
+  top: -80px;
+  right: -70px;
+  height: 220px;
+  width: 220px;
+  background: radial-gradient(circle, rgba(106, 197, 248, 0.46), rgba(106, 197, 248, 0));
+  animation: auth-drift 11s ease-in-out infinite;
+}
+
+.auth-orb-two {
+  bottom: 90px;
+  left: -55px;
+  height: 180px;
+  width: 180px;
+  background: radial-gradient(circle, rgba(133, 128, 255, 0.3), rgba(133, 128, 255, 0));
+  animation: auth-drift 13s ease-in-out infinite reverse;
+}
+
+.auth-orb-three {
+  top: 38%;
+  right: 24%;
+  height: 120px;
+  width: 120px;
+  background: radial-gradient(circle, rgba(90, 215, 194, 0.35), rgba(90, 215, 194, 0));
+  animation: auth-breathe 7s ease-in-out infinite;
+}
+
+.auth-hand-wave {
+  animation: auth-wave 3.6s ease-in-out infinite;
+  transform-origin: 72% 70%;
+}
+
+.auth-float-card {
+  animation: auth-float 6.4s ease-in-out infinite;
+}
+
+.auth-fade-in {
+  animation: auth-fade-up 0.7s ease-out both;
+}
+
+.auth-form-fade {
+  animation: auth-fade-up 0.55s ease-out both;
+}
+
+@keyframes auth-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes auth-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  50% {
+    transform: translate3d(-12px, 8px, 0);
+  }
+}
+
+@keyframes auth-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.58;
+  }
+
+  50% {
+    transform: scale(1.14);
+    opacity: 0.84;
+  }
+}
+
+@keyframes auth-wave {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+
+  10% {
+    transform: rotate(14deg);
+  }
+
+  20% {
+    transform: rotate(-8deg);
+  }
+
+  30% {
+    transform: rotate(11deg);
+  }
+
+  40% {
+    transform: rotate(-4deg);
+  }
+}
+
+@keyframes auth-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

@@ -1,4 +1,4 @@
-import type { QRRuleMode } from "@/types/qr";
+import type { QRRuleMode, QRTargetType, VCardProfile, WhatsAppTarget } from "@/types/qr";
 
 export interface ChatMessage {
   id: string;
@@ -9,9 +9,15 @@ export interface ChatMessage {
 export interface QRDraftFromAI {
   name?: string;
   defaultUrl?: string;
+  targetType?: QRTargetType;
   ruleMode?: QRRuleMode;
   languageRules?: Array<{ language: string; url: string }>;
   regionRules?: Array<{ region: string; url: string }>;
+  deviceRules?: Array<{ os: string; url: string }>;
+  paramRules?: Array<{ key: string; value: string; url: string }>;
+  abRules?: Array<{ variant: "A" | "B"; weight: number; url: string }>;
+  whatsapp?: WhatsAppTarget;
+  vcard?: VCardProfile;
   tracking?: {
     ga4Id?: string;
     metaPixelId?: string;

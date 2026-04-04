@@ -1,13 +1,18 @@
-# Zaps Smart QR Codex Prompt Template
+# Naviora Codex Prompt Template
 
 ## General Project Prompt
 
-Build the `Zaps Smart QR` frontend inside the existing Next.js App Router project.
+Build the `Naviora` frontend inside the existing Next.js App Router project.
 
 Requirements:
 
 - Preserve the existing visual direction: light SaaS workspace, blue + teal gradient accents, rounded glass-like cards, strong hierarchy, and a bilingual interface.
-- Brand name must always be `Zaps` or `Zaps Smart QR`.
+- Brand name must always be `Naviora`.
+- Product positioning name: `Rule-based Links and QR Routing`.
+- Core messaging:
+  - `One link, routed smarter.`
+  - `Smart links and QR routing for global audiences.`
+  - `Create once, route anywhere.`
 - The product supports two UI languages: `zh-Hant` and `en`.
 - Keep routes under `/{locale}` and preserve the current route structure:
   - `/{locale}`
@@ -18,11 +23,18 @@ Requirements:
   - `/{locale}/qrs/new`
   - `/{locale}/analytics`
 - Use mock data first. Do not block on real APIs.
+- Keep the product usable in two ways:
+  - Web App for manual workspace operations
+  - API for programmatic entry management and analytics access
 - Maintain the core product flow:
   - AI conversation
   - draft confirmation
   - QR design
-- Keep V1 limited to dynamic URL QR codes.
+- Keep the outer entry model unified: one smart entry routes to one or more target contents.
+- Do not split the product into separate entry types for link / WhatsApp / vCard / PDF.
+- In the current prioritization, expand target carriers in this order: `link` -> `whatsapp` -> `vcard` -> `pdf`.
+- In the current V1 implementation, the editable target content can still start with `link` URL first, but the model should reserve future target carriers such as `whatsapp`, `vcard`, `pdf`, `file`, or `deep_link`.
+- Rule modes in V1: `none | language | region | device | param | ab` (mutually exclusive).
 
 Technical expectations:
 
@@ -44,13 +56,13 @@ Design expectations:
 Use this template for individual tasks:
 
 ```md
-Work inside the existing `Zaps Smart QR` frontend.
+Work inside the existing `Naviora` frontend.
 
 Goal:
 [describe the specific task]
 
 Context:
-- Brand: Zaps / Zaps Smart QR
+- Brand: Naviora
 - UI languages: zh-Hant and en
 - Keep the existing route and layout structure
 - Reuse existing shared UI components before adding new ones
@@ -80,4 +92,5 @@ Before finishing:
 3. Refine dashboard, QR list, and analytics with mock data.
 4. Improve the 3-step QR creation flow.
 5. Connect mock services to user actions.
-6. Swap mock services for real APIs later.
+6. Reserve stable models for API usage, including API key auth, archive/restore, and analytics read.
+7. Swap mock services for real APIs later.

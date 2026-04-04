@@ -8,7 +8,6 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { Locale } from "@/i18n/config";
 import { withLocale } from "@/i18n/config";
@@ -19,6 +18,29 @@ import { useAuthStore } from "@/store/auth-store";
 interface AuthFormProps {
   locale: Locale;
   mode: "login" | "register";
+}
+
+function GoogleMark() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-[18px] w-[18px]">
+      <path
+        d="M21.8 12.23c0-.72-.06-1.25-.2-1.8H12.2v3.41h5.52c-.11.85-.69 2.14-1.98 3l-.02.11 2.79 2.12.19.02c1.74-1.57 2.9-3.89 2.9-6.86Z"
+        fill="#4285F4"
+      />
+      <path
+        d="M12.2 21.9c2.7 0 4.96-.87 6.61-2.36l-3.15-2.25c-.84.58-1.97.98-3.46.98-2.65 0-4.89-1.72-5.69-4.09l-.11.01-2.9 2.2-.04.1c1.64 3.18 5 5.41 8.74 5.41Z"
+        fill="#34A853"
+      />
+      <path
+        d="M6.51 14.18a5.8 5.8 0 0 1-.33-1.91c0-.66.12-1.3.31-1.91l-.01-.13-2.94-2.23-.1.04A9.77 9.77 0 0 0 2.4 12.27c0 1.42.35 2.77.98 3.98l3.13-2.07Z"
+        fill="#FBBC05"
+      />
+      <path
+        d="M12.2 6.27c1.88 0 3.15.8 3.87 1.46l2.83-2.7C17.14 3.43 14.9 2.64 12.2 2.64c-3.74 0-7.1 2.23-8.74 5.41l3.05 2.31c.82-2.37 3.06-4.09 5.69-4.09Z"
+        fill="#EB4335"
+      />
+    </svg>
+  );
 }
 
 export function AuthForm({ locale, mode }: AuthFormProps) {
@@ -81,14 +103,52 @@ export function AuthForm({ locale, mode }: AuthFormProps) {
   }, [locale, router, token]);
 
   return (
-    <Card className="mx-auto w-full max-w-xl p-8">
-      <div className="mb-6 space-y-2">
-        <h1 className="text-3xl font-semibold text-slate-900">{mode === "login" ? t.auth.loginTitle : t.auth.registerTitle}</h1>
+    <div className="auth-form-fade w-full rounded-[30px] border border-[rgba(196,210,228,0.5)] bg-white/92 p-6 shadow-[0_24px_50px_rgba(31,55,92,0.08)] backdrop-blur-xl md:p-9">
+      <div className="mb-7 space-y-3">
+        <div className="inline-flex rounded-full border border-sky-100 bg-sky-50/80 px-3 py-1 text-xs font-semibold tracking-[0.08em] text-sky-700">
+          {mode === "login" ? (locale === "zh-Hant" ? "歡迎回來" : "WELCOME BACK") : locale === "zh-Hant" ? "免費開始" : "START FREE"}
+        </div>
+        <h1 className="text-balance text-[34px] font-semibold leading-[1.15] text-slate-900">
+          {mode === "login"
+            ? locale === "zh-Hant"
+              ? "輸入你的工作信箱"
+              : "Enter your work email"
+            : locale === "zh-Hant"
+              ? "建立你的工作帳號"
+              : "Create your work account"}
+        </h1>
         <p className="text-sm leading-6 text-slate-500">{mode === "login" ? t.auth.loginSubtitle : t.auth.registerSubtitle}</p>
       </div>
+      {mode === "login" ? (
+        <>
+          <Button type="button" variant="secondary" className="h-12 w-full rounded-[14px] text-base" disabled icon={<GoogleMark />}>
+            {t.auth.googleAction}
+          </Button>
+          <div className="mt-4 flex items-center gap-3">
+            <div className="h-px flex-1 bg-[rgba(190,206,226,0.55)]" />
+            <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">{t.auth.orDivider}</span>
+            <div className="h-px flex-1 bg-[rgba(190,206,226,0.55)]" />
+          </div>
+          <p className="mt-3 text-xs leading-6 text-slate-500">{t.auth.googleHelper}</p>
+        </>
+      ) : null}
       <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
-        <Input label={t.auth.email} type="email" placeholder="hello@zapsqr.com" error={errors.email?.message?.toString()} {...register("email")} />
-        <Input label={t.auth.password} type="password" placeholder="******" error={errors.password?.message?.toString()} {...register("password")} />
+        <Input
+          label={t.auth.email}
+          type="email"
+          placeholder="name@company.com"
+          error={errors.email?.message?.toString()}
+          className="h-12 rounded-[14px]"
+          {...register("email")}
+        />
+        <Input
+          label={t.auth.password}
+          type="password"
+          placeholder="******"
+          error={errors.password?.message?.toString()}
+          className="h-12 rounded-[14px]"
+          {...register("password")}
+        />
         {mode === "register" ? (
           <>
             <Input
@@ -96,19 +156,21 @@ export function AuthForm({ locale, mode }: AuthFormProps) {
               type="password"
               placeholder="******"
               error={errors.confirmPassword?.message?.toString()}
+              className="h-12 rounded-[14px]"
               {...register("confirmPassword")}
             />
-            <label className="flex items-start gap-3 rounded-[16px] bg-slate-50 px-4 py-3 text-sm text-slate-600">
-              <input type="checkbox" className="mt-1 h-4 w-4" {...register("agreeTerms")} />
+            <label className="flex items-start gap-3 rounded-[16px] border border-slate-200 bg-slate-50/85 px-4 py-3 text-sm text-slate-600">
+              <input type="checkbox" className="mt-1 h-4 w-4 rounded border-slate-300" {...register("agreeTerms")} />
               <span>{t.auth.agreeTerms}</span>
             </label>
             {errors.agreeTerms ? <p className="text-sm text-rose-600">{errors.agreeTerms.message?.toString()}</p> : null}
           </>
         ) : null}
-        <Button className="w-full" type="submit" disabled={isSubmitting}>
+        <Button className="h-12 w-full rounded-[12px] text-base" type="submit" disabled={isSubmitting}>
           {isSubmitting ? t.common.loading : mode === "login" ? t.auth.loginAction : t.auth.registerAction}
         </Button>
       </form>
+
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500">
         {mode === "login" ? (
           <>
@@ -126,6 +188,6 @@ export function AuthForm({ locale, mode }: AuthFormProps) {
           </>
         )}
       </div>
-    </Card>
+    </div>
   );
 }

@@ -20,11 +20,11 @@ export const defaultConversation: ChatMessage[] = [
 
 export const defaultDraft: QRDraftFromAI = {
   name: "2026 展会海报",
-  defaultUrl: "https://zapsqr.com/en/expo",
+  defaultUrl: "https://naviora.com/en/expo",
   ruleMode: "language",
   languageRules: [
-    { language: "English", url: "https://zapsqr.com/en/expo" },
-    { language: "繁體中文", url: "https://zapsqr.com/hk/expo" },
+    { language: "en", url: "https://naviora.com/en/expo" },
+    { language: "zh-Hant", url: "https://naviora.com/hk/expo" },
   ],
   tracking: {
     ga4Id: "G-7TWEXPO26",

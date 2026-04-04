@@ -16,6 +16,26 @@ export async function register() {
   return { token: "mock-token", user: mockUser };
 }
 
+export async function updateAccountEmail(email: string) {
+  await wait(450);
+  return { email };
+}
+
+export async function requestEmailChangeCode(email: string) {
+  await wait(350);
+  return { ok: true, email };
+}
+
+export async function updateAccountPassword() {
+  await wait(450);
+  return { ok: true };
+}
+
+export async function requestPasswordChangeCode(email: string) {
+  await wait(350);
+  return { ok: true, email };
+}
+
 export async function getDashboardStats() {
   await wait(200);
   return dashboardStats;
@@ -34,7 +54,7 @@ export async function getAnalyticsOverview() {
 export async function chatWithQwen(
   messages: Array<{ role: "user" | "assistant"; content: string }>,
   locale: string
-): Promise<{ reply: string; draft: Partial<QRDraftFromAI> }> {
+): Promise<{ reply: string; draft: Partial<QRDraftFromAI>; readyForReview: boolean }> {
   const res = await fetch("/api/qwen", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -44,5 +64,6 @@ export async function chatWithQwen(
   return {
     reply: data.reply ?? "AI\u672a\u8fd4\u56de\u5185\u5bb9",
     draft: data.draft ?? {},
+    readyForReview: Boolean(data.readyForReview),
   };
 }

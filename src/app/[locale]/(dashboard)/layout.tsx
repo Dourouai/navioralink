@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 
 import { AppShell } from "@/components/layout/app-shell";
-import { AuthGate } from "@/components/layout/auth-gate";
 import { isLocale, type Locale } from "@/i18n/config";
 
 export default async function DashboardLayout({
@@ -19,7 +18,7 @@ export default async function DashboardLayout({
 
   return (
     <AppShell locale={locale as Locale}>
-      <AuthGate locale={locale as Locale}>{children}</AuthGate>
+      {children}
     </AppShell>
   );
 }
