@@ -3,27 +3,33 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronUp, LogOut, Settings, Zap } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { AppLogo } from "@/components/shared/app-logo";
 import type { Locale } from "@/i18n/config";
 import { withLocale } from "@/i18n/config";
 import { getMessages } from "@/i18n/messages";
+import { logout } from "@/lib/services";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth-store";
+import type { User } from "@/types/user";
 
 import { LanguageSwitcher } from "./language-switcher";
 
 interface AppShellProps {
   locale: Locale;
+  authEnabled?: boolean;
+  initialUser?: User | null;
   children: React.ReactNode;
 }
 
-export function AppShell({ locale, children }: AppShellProps) {
+export function AppShell({ locale, authEnabled = false, initialUser, children }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const t = getMessages(locale);
   const user = useAuthStore((state) => state.user);
+  const setSession = useAuthStore((state) => state.setSession);
+  const syncUser = useAuthStore((state) => state.syncUser);
   const clearSession = useAuthStore((state) => state.clearSession);
   const [menuOpen, setMenuOpen] = useState(false);
   const items = [
@@ -33,10 +39,30 @@ export function AppShell({ locale, children }: AppShellProps) {
     { key: "analytics", href: withLocale(locale, "/analytics"), label: t.nav.analytics },
   ] as const;
 
-  function logout() {
-    clearSession();
-    router.push(withLocale(locale, "/login"));
+  useEffect(() => {
+    if (!authEnabled) {
+      return;
+    }
+
+    if (initialUser) {
+      setSession({ token: null, user: initialUser });
+      return;
+    }
+
+    syncUser(null);
+  }, [authEnabled, initialUser, setSession, syncUser]);
+
+  async function handleLogout() {
+    try {
+      await logout();
+    } finally {
+      clearSession();
+      router.push(withLocale(locale, "/login"));
+      router.refresh();
+    }
   }
+
+  const displayUser = user ?? initialUser ?? null;
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-[1600px] gap-6 px-3 py-4 md:px-5">
@@ -91,7 +117,7 @@ export function AppShell({ locale, children }: AppShellProps) {
               </button>
               <button
                 type="button"
-                onClick={logout}
+                onClick={handleLogout}
                 className="flex w-full items-center justify-between rounded-[18px] px-4 py-3 text-sm font-medium text-rose-600 transition hover:bg-rose-50"
               >
                 <span>{t.common.logout}</span>
@@ -105,11 +131,11 @@ export function AppShell({ locale, children }: AppShellProps) {
             className="flex w-full items-center gap-3 rounded-[24px] bg-white/90 px-4 py-4 text-left shadow-[0_12px_24px_rgba(31,55,92,0.05)] ring-1 ring-[rgba(190,206,226,0.45)] transition hover:bg-white"
           >
             <div className="flex h-12 w-12 items-center justify-center rounded-[18px] bg-[linear-gradient(135deg,#e9f6ff_0%,#f2efff_100%)] text-sm font-semibold text-sky-700">
-              {user?.name?.slice(0, 1) ?? "Z"}
+              {displayUser?.name?.slice(0, 1) ?? "Z"}
             </div>
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold text-slate-900">{user?.name ?? "Naviora User"}</div>
-              <div className="truncate text-xs text-slate-500">{user?.email ?? "hello@naviora.com"}</div>
+              <div className="truncate text-sm font-semibold text-slate-900">{displayUser?.name ?? "Naviora User"}</div>
+              <div className="truncate text-xs text-slate-500">{displayUser?.email ?? "hello@naviora.com"}</div>
             </div>
             <div className="ml-auto flex h-9 w-9 items-center justify-center rounded-[14px] bg-slate-50 text-slate-500 ring-1 ring-slate-200">
               <ChevronUp size={16} className={cn("transition", menuOpen ? "rotate-0" : "rotate-180")} />

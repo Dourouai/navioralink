@@ -2,10 +2,11 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import { locales } from "@/i18n/config";
+import { updateSupabaseSession } from "@/lib/supabase/proxy";
 
 const publicPathsWithoutLocale = ["/api", "/_next", "/static", "/assets"];
 
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   if (publicPathsWithoutLocale.some((path) => pathname.startsWith(path))) {
@@ -13,7 +14,7 @@ export function proxy(request: NextRequest) {
   }
 
   if (pathname === "/") {
-    return NextResponse.next();
+    return updateSupabaseSession(request);
   }
 
   if (pathname === "/en" || pathname.startsWith("/en/")) {
@@ -28,16 +29,16 @@ export function proxy(request: NextRequest) {
   const hasLocalePrefix = Boolean(firstSegment && locales.includes(firstSegment as (typeof locales)[number]));
 
   if (hasLocalePrefix) {
-    return NextResponse.next();
+    return updateSupabaseSession(request);
   }
 
   if (!pathname.startsWith("/.")) {
     const rewriteUrl = request.nextUrl.clone();
     rewriteUrl.pathname = `/en${pathname}`;
-    return NextResponse.rewrite(rewriteUrl);
+    return updateSupabaseSession(request, NextResponse.rewrite(rewriteUrl));
   }
 
-  return NextResponse.next();
+  return updateSupabaseSession(request);
 }
 
 export const config = {

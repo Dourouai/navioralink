@@ -14,10 +14,17 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import type { Locale } from "@/i18n/config";
 import { withLocale } from "@/i18n/config";
 import { getMessages } from "@/i18n/messages";
-import { chatWithQwen } from "@/lib/services";
-import { COUNTRIES } from "@/lib/countries";
 import { DEVICE_SYSTEMS } from "@/lib/device-systems";
 import { getEntryUrl } from "@/lib/entry-url";
+import {
+  getCallingCountryOptions,
+  getCountryDialCode,
+  getRegionCountryOptions,
+  inferCountryCodeFromDialCode,
+} from "@/lib/phone-countries";
+import { chatWithQwen } from "@/lib/services";
+import { saveEntryFromDraft } from "@/lib/supabase/entries-browser";
+import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { LANGUAGES } from "@/lib/languages";
 import { useQrCreateStore } from "@/store/qr-create-store";
 import {
@@ -631,9 +638,12 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
   const [correctionOpen, setCorrectionOpen] = useState(false);
   const [logoOpen, setLogoOpen] = useState(false);
   const [step2Errors, setStep2Errors] = useState<{
+    qrName?: string;
     targetUrl?: string;
     whatsappPhone?: string;
     vcardName?: string;
+    vcardPhone?: string;
+    vcardEmail?: string;
     password?: string;
     expiresAt?: string;
     abWeight?: string;
@@ -646,8 +656,15 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
   const [vcardUploadIntent, setVcardUploadIntent] = useState<"avatar" | "library">("library");
   const [entryUrlCopied, setEntryUrlCopied] = useState(false);
   const [directionConfirmed, setDirectionConfirmed] = useState(false);
+  const [persistingAction, setPersistingAction] = useState<"draft" | "generate" | null>(null);
   const vcardImageInputRef = useRef<HTMLInputElement>(null);
   const selectedTargetType = draft.targetType ?? "web";
+  const whatsappCountryOptions = useMemo(() => getCallingCountryOptions(locale), [locale]);
+  const regionCountryOptions = useMemo(() => getRegionCountryOptions(locale), [locale]);
+  const selectedWhatsappCountryIso =
+    draft.whatsapp?.countryIso || inferCountryCodeFromDialCode(draft.whatsapp?.countryCode, draft.whatsapp?.countryIso) || "CN";
+  const selectedWhatsappCountryOption =
+    whatsappCountryOptions.find((option) => option.value === selectedWhatsappCountryIso) ?? whatsappCountryOptions[0];
   const selectedQrStyle = (qrStyles.find((item) => item.id === design.qrStyle)?.id ?? "rounded") as QrStyleId;
   const previewBorderColor = resolvePreviewColor(design.borderColor, "#0f172a");
   const previewBackgroundColor = resolvePreviewColor(design.backgroundColor, "#ffffff");
@@ -767,15 +784,26 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
 
   const step1MissingFields = useMemo(() => {
     if (selectedTargetType === "whatsapp") {
-      return draft.whatsapp?.phone?.trim() ? [] : [t.create.whatsappPhone];
+      return [
+        !draft.name?.trim() ? t.create.qrName : null,
+        !draft.whatsapp?.phone?.trim() ? t.create.whatsappPhone : null,
+      ].filter(Boolean) as string[];
     }
 
     if (selectedTargetType === "vcard") {
-      return draft.vcard?.fullName?.trim() || draft.name?.trim() ? [] : [t.create.vcardFullName];
+      return [
+        !draft.name?.trim() ? t.create.qrName : null,
+        !draft.vcard?.fullName?.trim() ? t.create.vcardFullName : null,
+        !draft.vcard?.phone?.trim() ? t.create.vcardPhone : null,
+        !draft.vcard?.email?.trim() ? t.create.vcardEmail : null,
+      ].filter(Boolean) as string[];
     }
 
-    return draft.defaultUrl?.trim() ? [] : [t.create.webUrlLabel];
-  }, [draft.defaultUrl, draft.name, draft.vcard?.fullName, draft.whatsapp?.phone, selectedTargetType, t.create.vcardFullName, t.create.webUrlLabel, t.create.whatsappPhone]);
+    return [
+      !draft.name?.trim() ? t.create.qrName : null,
+      !draft.defaultUrl?.trim() ? t.create.webUrlLabel : null,
+    ].filter(Boolean) as string[];
+  }, [draft.defaultUrl, draft.name, draft.vcard?.email, draft.vcard?.fullName, draft.vcard?.phone, draft.whatsapp?.phone, selectedTargetType, t.create.qrName, t.create.vcardEmail, t.create.vcardFullName, t.create.vcardPhone, t.create.webUrlLabel, t.create.whatsappPhone]);
   const canEnterReview = step1MissingFields.length === 0;
   const showDirectionPendingCard = directionConfirmed && !canEnterReview;
   const showDirectionReadyCard = directionConfirmed && canEnterReview;
@@ -818,10 +846,11 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
         title: t.create.collectionGuideTitleWhatsapp,
         body: t.create.collectionGuideBodyWhatsapp,
         required: [
+          { label: t.create.qrName, value: draft.name?.trim() || "" },
           { label: t.create.whatsappPhone, value: draft.whatsapp?.phone?.trim() || "" },
         ],
         optional: [
-          { label: t.create.whatsappCountryCode, value: draft.whatsapp?.countryCode?.trim() || "" },
+          { label: t.create.whatsappCountryCode, value: selectedWhatsappCountryOption?.label ?? "" },
           { label: t.create.whatsappMessage, value: draft.whatsapp?.message?.trim() || "" },
         ],
       };
@@ -832,11 +861,12 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
         title: t.create.collectionGuideTitleVcard,
         body: t.create.collectionGuideBodyVcard,
         required: [
+          { label: t.create.qrName, value: draft.name?.trim() || "" },
           { label: t.create.vcardFullName, value: draft.vcard?.fullName?.trim() || draft.name?.trim() || "" },
-        ],
-        optional: [
           { label: t.create.vcardPhone, value: draft.vcard?.phone?.trim() || "" },
           { label: t.create.vcardEmail, value: draft.vcard?.email?.trim() || "" },
+        ],
+        optional: [
           { label: t.create.vcardCompany, value: draft.vcard?.company?.trim() || "" },
           { label: t.create.vcardTitle, value: draft.vcard?.title?.trim() || "" },
           { label: t.create.vcardWebsite, value: draft.vcard?.website?.trim() || "" },
@@ -849,6 +879,7 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
       title: t.create.collectionGuideTitleWeb,
       body: t.create.collectionGuideBodyWeb,
       required: [
+        { label: t.create.qrName, value: draft.name?.trim() || "" },
         { label: t.create.webUrlLabel, value: draft.defaultUrl?.trim() || "" },
       ],
       optional: [
@@ -868,9 +899,9 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
     draft.vcard?.phone,
     draft.vcard?.title,
     draft.vcard?.website,
-    draft.whatsapp?.countryCode,
     draft.whatsapp?.message,
     draft.whatsapp?.phone,
+    selectedWhatsappCountryOption?.label,
     t.create.collectionGuideBodyVcard,
     t.create.collectionGuideBodyWeb,
     t.create.collectionGuideBodyWhatsapp,
@@ -878,6 +909,7 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
     t.create.collectionGuideTitleWeb,
     t.create.collectionGuideTitleWhatsapp,
     t.create.collectionWebRoutingLabel,
+    t.create.qrName,
     t.create.vcardCompany,
     t.create.vcardEmail,
     t.create.vcardAvatarTitle,
@@ -899,9 +931,12 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
   function clearStep2Errors() {
     setStep2Errors((current) => ({
       ...current,
+      qrName: undefined,
       targetUrl: undefined,
       whatsappPhone: undefined,
       vcardName: undefined,
+      vcardPhone: undefined,
+      vcardEmail: undefined,
       abWeight: undefined,
       abUrlA: undefined,
       abUrlB: undefined,
@@ -927,8 +962,11 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
     }
 
     if (nextType === "whatsapp") {
+      const nextCountryIso =
+        draft.whatsapp?.countryIso || inferCountryCodeFromDialCode(draft.whatsapp?.countryCode, draft.whatsapp?.countryIso) || "CN";
       const nextWhatsapp = {
-        countryCode: draft.whatsapp?.countryCode ?? "86",
+        countryIso: nextCountryIso,
+        countryCode: draft.whatsapp?.countryCode ?? getCountryDialCode(nextCountryIso) ?? "86",
         phone: draft.whatsapp?.phone ?? "",
         message: draft.whatsapp?.message ?? "",
       };
@@ -1017,8 +1055,21 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
             defaultUrl: normalizedDraft.defaultUrl ?? buildVCardContentUrl(nextVCard),
           });
         } else if (nextTargetType === "whatsapp") {
+          const nextCountryIso =
+            normalizedDraft.whatsapp?.countryIso ||
+            draft.whatsapp?.countryIso ||
+            inferCountryCodeFromDialCode(
+              normalizedDraft.whatsapp?.countryCode ?? draft.whatsapp?.countryCode,
+              draft.whatsapp?.countryIso,
+            ) ||
+            "CN";
           const nextWhatsapp = {
-            countryCode: normalizedDraft.whatsapp?.countryCode ?? draft.whatsapp?.countryCode ?? "86",
+            countryIso: nextCountryIso,
+            countryCode:
+              normalizedDraft.whatsapp?.countryCode ??
+              getCountryDialCode(nextCountryIso) ??
+              draft.whatsapp?.countryCode ??
+              "86",
             phone: normalizedDraft.whatsapp?.phone ?? draft.whatsapp?.phone ?? "",
             message: normalizedDraft.whatsapp?.message ?? draft.whatsapp?.message ?? "",
           };
@@ -1132,8 +1183,11 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
   }
 
   function updateWhatsAppField(field: "countryCode" | "phone" | "message", value: string) {
+    const nextCountryIso =
+      draft.whatsapp?.countryIso || inferCountryCodeFromDialCode(draft.whatsapp?.countryCode, draft.whatsapp?.countryIso) || "CN";
     const nextWhatsapp = {
-      countryCode: draft.whatsapp?.countryCode ?? "86",
+      countryIso: nextCountryIso,
+      countryCode: draft.whatsapp?.countryCode ?? getCountryDialCode(nextCountryIso) ?? "86",
       phone: draft.whatsapp?.phone ?? "",
       message: draft.whatsapp?.message ?? "",
       [field]: value,
@@ -1148,6 +1202,22 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
     if (field === "phone" && step2Errors.whatsappPhone) {
       setStep2Errors((current) => ({ ...current, whatsappPhone: undefined }));
     }
+  }
+
+  function updateWhatsAppCountry(countryIso: string) {
+    const dialCode = getCountryDialCode(countryIso);
+    const nextWhatsapp = {
+      countryIso,
+      countryCode: dialCode || draft.whatsapp?.countryCode || "86",
+      phone: draft.whatsapp?.phone ?? "",
+      message: draft.whatsapp?.message ?? "",
+    };
+
+    updateDraft({
+      targetType: "whatsapp",
+      whatsapp: nextWhatsapp,
+      defaultUrl: buildWhatsAppUrl(nextWhatsapp),
+    });
   }
 
   function updateVCardProfile(patch: Partial<VCardProfile>) {
@@ -1166,6 +1236,14 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
 
     if (field === "fullName" && step2Errors.vcardName) {
       setStep2Errors((current) => ({ ...current, vcardName: undefined }));
+    }
+
+    if (field === "phone" && step2Errors.vcardPhone) {
+      setStep2Errors((current) => ({ ...current, vcardPhone: undefined }));
+    }
+
+    if (field === "email" && step2Errors.vcardEmail) {
+      setStep2Errors((current) => ({ ...current, vcardEmail: undefined }));
     }
   }
 
@@ -1313,15 +1391,22 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
 
   function goToDesignStep() {
     const nextErrors: {
+      qrName?: string;
       targetUrl?: string;
       whatsappPhone?: string;
       vcardName?: string;
+      vcardPhone?: string;
+      vcardEmail?: string;
       password?: string;
       expiresAt?: string;
       abWeight?: string;
       abUrlA?: string;
       abUrlB?: string;
     } = {};
+
+    if (!draft.name?.trim()) {
+      nextErrors.qrName = t.create.qrNameRequiredError;
+    }
 
     if (selectedTargetType === "web" && !draft.defaultUrl?.trim()) {
       nextErrors.targetUrl = t.create.targetUrlRequiredError;
@@ -1331,8 +1416,18 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
       nextErrors.whatsappPhone = t.create.whatsappPhoneRequiredError;
     }
 
-    if (selectedTargetType === "vcard" && !draft.vcard?.fullName?.trim()) {
-      nextErrors.vcardName = t.create.vcardNameRequiredError;
+    if (selectedTargetType === "vcard") {
+      if (!draft.vcard?.fullName?.trim()) {
+        nextErrors.vcardName = t.create.vcardNameRequiredError;
+      }
+
+      if (!draft.vcard?.phone?.trim()) {
+        nextErrors.vcardPhone = t.create.vcardPhoneRequiredError;
+      }
+
+      if (!draft.vcard?.email?.trim()) {
+        nextErrors.vcardEmail = t.create.vcardEmailRequiredError;
+      }
     }
 
     if (passwordOpen && !draft.password?.trim()) {
@@ -1392,7 +1487,7 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
     window.setTimeout(() => setEntryUrlCopied(false), 1800);
   }
 
-  function saveDraftSnapshot() {
+  async function saveDraftSnapshot() {
     const snapshot = {
       step,
       draft,
@@ -1401,10 +1496,38 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
     };
 
     localStorage.setItem("naviora:qr-create-draft:v1", JSON.stringify(snapshot));
-    router.push(withLocale(locale, "/qrs"));
+    setPersistingAction("draft");
+
+    try {
+      if (hasSupabaseEnv()) {
+        await saveEntryFromDraft({
+          draft,
+          design,
+          status: "draft",
+        });
+      }
+
+      router.push(withLocale(locale, "/qrs"));
+      router.refresh();
+    } catch (error) {
+      addMessage({
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content:
+          error instanceof Error
+            ? error.message
+            : locale === "zh-Hant"
+              ? "儲存草稿失敗，請稍後再試。"
+              : locale === "zh-Hans"
+                ? "保存草稿失败，请稍后再试。"
+                : "Failed to save the draft. Please try again.",
+      });
+    } finally {
+      setPersistingAction(null);
+    }
   }
 
-  function generateEntry() {
+  async function generateEntry() {
     const snapshot = {
       step,
       draft,
@@ -1414,7 +1537,35 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
     };
 
     localStorage.setItem("naviora:qr-create-draft:v1", JSON.stringify(snapshot));
-    router.push(withLocale(locale, "/qrs"));
+    setPersistingAction("generate");
+
+    try {
+      if (hasSupabaseEnv()) {
+        await saveEntryFromDraft({
+          draft,
+          design,
+          status: "active",
+        });
+      }
+
+      router.push(withLocale(locale, "/qrs"));
+      router.refresh();
+    } catch (error) {
+      addMessage({
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content:
+          error instanceof Error
+            ? error.message
+            : locale === "zh-Hant"
+              ? "發布入口失敗，請稍後再試。"
+              : locale === "zh-Hans"
+                ? "发布入口失败，请稍后再试。"
+                : "Failed to publish the entry. Please try again.",
+      });
+    } finally {
+      setPersistingAction(null);
+    }
   }
 
   return (
@@ -1681,11 +1832,23 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
                   </div>
 
                   <div className="grid gap-4 md:grid-cols-2">
-                    <Input label={t.create.qrName} value={draft.name ?? ""} onChange={(event) => updateDraft({ name: event.target.value })} />
+                    <Input
+                      label={t.create.qrName}
+                      labelBadge={t.common.required}
+                      value={draft.name ?? ""}
+                      error={step2Errors.qrName}
+                      onChange={(event) => {
+                        updateDraft({ name: event.target.value });
+                        if (step2Errors.qrName) {
+                          setStep2Errors((current) => ({ ...current, qrName: undefined }));
+                        }
+                      }}
+                    />
 
                     {selectedTargetType === "web" ? (
                       <Input
                         label={t.create.webUrlLabel}
+                        labelBadge={t.common.required}
                         value={draft.defaultUrl ?? ""}
                         error={step2Errors.targetUrl}
                         onChange={(event) => {
@@ -1699,14 +1862,29 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
 
                     {selectedTargetType === "whatsapp" ? (
                       <>
-                        <Input
-                          label={t.create.whatsappCountryCode}
-                          value={draft.whatsapp?.countryCode ?? "86"}
-                          placeholder="86"
-                          onChange={(event) => updateWhatsAppField("countryCode", event.target.value)}
-                        />
+                        <div>
+                          <SearchableSelect
+                            label={t.create.whatsappCountryCode}
+                            labelBadge={t.common.required}
+                            value={selectedWhatsappCountryIso}
+                            options={whatsappCountryOptions}
+                            placeholder={locale === "zh-Hant" ? "選擇國家 / 區號" : locale === "zh-Hans" ? "选择国家 / 区号" : "Select country / code"}
+                            searchPlaceholder={locale === "zh-Hant" ? "搜索國家、區號或英文名…" : locale === "zh-Hans" ? "搜索国家、区号或英文名…" : "Search country, code, or English name…"}
+                            noResultsLabel={locale === "zh-Hant" ? "找不到對應國家" : locale === "zh-Hans" ? "找不到对应国家" : "No matching country"}
+                            showValue={false}
+                            onChange={updateWhatsAppCountry}
+                          />
+                          <p className="mt-2 text-xs text-slate-500">
+                            {locale === "zh-Hant"
+                              ? "支援全部國家，可直接搜索國家名稱、區號或英文名。"
+                              : locale === "zh-Hans"
+                                ? "支持全部国家，可直接搜索国家名称、区号或英文名。"
+                                : "Supports all countries. Search by country name, dialing code, or English name."}
+                          </p>
+                        </div>
                         <Input
                           label={t.create.whatsappPhone}
+                          labelBadge={t.common.required}
                           value={draft.whatsapp?.phone ?? ""}
                           error={step2Errors.whatsappPhone}
                           placeholder="13800138000"
@@ -1738,12 +1916,25 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
                         />
                         <Input
                           label={t.create.vcardFullName}
+                          labelBadge={t.common.required}
                           value={draft.vcard?.fullName ?? ""}
                           error={step2Errors.vcardName}
                           onChange={(event) => updateVCardField("fullName", event.target.value)}
                         />
-                        <Input label={t.create.vcardPhone} value={draft.vcard?.phone ?? ""} onChange={(event) => updateVCardField("phone", event.target.value)} />
-                        <Input label={t.create.vcardEmail} value={draft.vcard?.email ?? ""} onChange={(event) => updateVCardField("email", event.target.value)} />
+                        <Input
+                          label={t.create.vcardPhone}
+                          labelBadge={t.common.required}
+                          value={draft.vcard?.phone ?? ""}
+                          error={step2Errors.vcardPhone}
+                          onChange={(event) => updateVCardField("phone", event.target.value)}
+                        />
+                        <Input
+                          label={t.create.vcardEmail}
+                          labelBadge={t.common.required}
+                          value={draft.vcard?.email ?? ""}
+                          error={step2Errors.vcardEmail}
+                          onChange={(event) => updateVCardField("email", event.target.value)}
+                        />
                         <Input label={t.create.vcardCompany} value={draft.vcard?.company ?? ""} onChange={(event) => updateVCardField("company", event.target.value)} />
                         <Input label={t.create.vcardTitle} value={draft.vcard?.title ?? ""} onChange={(event) => updateVCardField("title", event.target.value)} />
                         <Input label={t.create.vcardWebsite} value={draft.vcard?.website ?? ""} onChange={(event) => updateVCardField("website", event.target.value)} />
@@ -1978,9 +2169,11 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
                             <SearchableSelect
                               label={t.create.region}
                               value={rule.region}
-                              options={COUNTRIES.map((c) => ({ value: c.code, label: locale === "zh-Hant" ? c["zh-Hant"] : c.en }))}
+                              options={regionCountryOptions}
                               placeholder={locale === "zh-Hant" ? "選擇國家/地區" : locale === "zh-Hans" ? "选择国家/地区" : "Select country / region"}
-                              searchPlaceholder={locale === "zh-Hant" ? "搜索國家/地區…" : locale === "zh-Hans" ? "搜索国家/地区…" : "Search country / region…"}
+                              searchPlaceholder={locale === "zh-Hant" ? "搜索國家、代碼或英文名…" : locale === "zh-Hans" ? "搜索国家、代码或英文名…" : "Search country, code, or English name…"}
+                              noResultsLabel={locale === "zh-Hant" ? "找不到對應國家/地區" : locale === "zh-Hans" ? "找不到对应国家/地区" : "No matching country / region"}
+                              showValue={false}
                               onChange={(val) => updateRegionRule(index, { region: val })}
                             />
                             <Input label="URL" value={rule.url} onChange={(e) => updateRegionRule(index, { url: e.target.value })} />
@@ -2515,10 +2708,12 @@ export function QrCreateFlow({ locale }: QrCreateFlowProps) {
                   {t.common.back}
                 </Button>
                 <div className="flex items-center gap-3">
-                  <Button type="button" variant="secondary" onClick={saveDraftSnapshot}>
-                    {t.common.saveDraft}
+                  <Button type="button" variant="secondary" onClick={saveDraftSnapshot} disabled={persistingAction !== null}>
+                    {persistingAction === "draft" ? t.common.loading : t.common.saveDraft}
                   </Button>
-                  <Button type="button" onClick={generateEntry}>{t.common.generate}</Button>
+                  <Button type="button" onClick={generateEntry} disabled={persistingAction !== null}>
+                    {persistingAction === "generate" ? t.common.loading : t.common.generate}
+                  </Button>
                 </div>
               </div>
             </>

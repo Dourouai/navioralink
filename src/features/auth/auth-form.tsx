@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -47,7 +47,7 @@ export function AuthForm({ locale, mode }: AuthFormProps) {
   const t = getMessages(locale);
   const router = useRouter();
   const setSession = useAuthStore((state) => state.setSession);
-  const token = useAuthStore((state) => state.token);
+  const [submitError, setSubmitError] = useState("");
   type FormValues = {
     email: string;
     password: string;
@@ -90,17 +90,47 @@ export function AuthForm({ locale, mode }: AuthFormProps) {
     },
   });
 
-  const onSubmit = async () => {
-    const result = mode === "login" ? await login() : await registerUser();
-    setSession(result);
-    router.push(withLocale(locale, "/dashboard"));
+  const onSubmit = async (values: FormValues) => {
+    setSubmitError("");
+
+    try {
+      const result =
+        mode === "login"
+          ? await login({ email: values.email, password: values.password })
+          : await registerUser({ email: values.email, password: values.password });
+
+      setSession(result);
+      router.push(withLocale(locale, "/dashboard"));
+      router.refresh();
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Something went wrong. Please try again.");
+    }
   };
 
-  useEffect(() => {
-    if (token) {
-      router.replace(withLocale(locale, "/dashboard"));
-    }
-  }, [locale, router, token]);
+  const termsAgreementContent =
+    locale === "en" ? (
+      <>
+        I agree to the{" "}
+        <Link href={withLocale(locale, "/terms")} className="font-medium text-sky-700 underline-offset-4 hover:underline">
+          {t.home.footerLinks.terms}
+        </Link>{" "}
+        and{" "}
+        <Link href={withLocale(locale, "/privacy")} className="font-medium text-sky-700 underline-offset-4 hover:underline">
+          {t.home.footerLinks.privacy}
+        </Link>
+      </>
+    ) : (
+      <>
+        我同意{" "}
+        <Link href={withLocale(locale, "/terms")} className="font-medium text-sky-700 underline-offset-4 hover:underline">
+          {t.home.footerLinks.terms}
+        </Link>{" "}
+        {locale === "zh-Hant" ? "與" : "与"}{" "}
+        <Link href={withLocale(locale, "/privacy")} className="font-medium text-sky-700 underline-offset-4 hover:underline">
+          {t.home.footerLinks.privacy}
+        </Link>
+      </>
+    );
 
   return (
     <div className="auth-form-fade w-full rounded-[30px] border border-[rgba(196,210,228,0.5)] bg-white/92 p-6 shadow-[0_24px_50px_rgba(31,55,92,0.08)] backdrop-blur-xl md:p-9">
@@ -161,7 +191,7 @@ export function AuthForm({ locale, mode }: AuthFormProps) {
             />
             <label className="flex items-start gap-3 rounded-[16px] border border-slate-200 bg-slate-50/85 px-4 py-3 text-sm text-slate-600">
               <input type="checkbox" className="mt-1 h-4 w-4 rounded border-slate-300" {...register("agreeTerms")} />
-              <span>{t.auth.agreeTerms}</span>
+              <span>{termsAgreementContent}</span>
             </label>
             {errors.agreeTerms ? <p className="text-sm text-rose-600">{errors.agreeTerms.message?.toString()}</p> : null}
           </>
@@ -169,6 +199,7 @@ export function AuthForm({ locale, mode }: AuthFormProps) {
         <Button className="h-12 w-full rounded-[12px] text-base" type="submit" disabled={isSubmitting}>
           {isSubmitting ? t.common.loading : mode === "login" ? t.auth.loginAction : t.auth.registerAction}
         </Button>
+        {submitError ? <p className="text-sm text-rose-600">{submitError}</p> : null}
       </form>
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500">

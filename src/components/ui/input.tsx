@@ -6,12 +6,22 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   hint?: string;
   error?: string;
+  labelBadge?: string;
 }
 
-export function Input({ className, label, hint, error, id, ...props }: InputProps) {
+export function Input({ className, label, hint, error, id, labelBadge, ...props }: InputProps) {
   return (
     <label className="block space-y-2">
-      {label ? <span className="text-sm font-medium text-slate-700">{label}</span> : null}
+      {label ? (
+        <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
+          <span>{label}</span>
+          {labelBadge ? (
+            <span className="text-[12px] font-semibold text-rose-500">
+              {labelBadge}
+            </span>
+          ) : null}
+        </span>
+      ) : null}
       <input
         id={id}
         className={cn(

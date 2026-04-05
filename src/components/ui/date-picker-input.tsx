@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 
 import type { Locale } from "@/i18n/config";
+import { getIntlLocale } from "@/i18n/format";
 import { cn } from "@/lib/utils";
 
 interface DatePickerInputProps {
@@ -63,14 +64,14 @@ function buildCalendarDays(month: Date) {
 }
 
 function formatMonthLabel(month: Date, locale: Locale) {
-  return new Intl.DateTimeFormat(locale === "zh-Hant" ? "zh-Hant" : "en-US", {
+  return new Intl.DateTimeFormat(getIntlLocale(locale), {
     year: "numeric",
     month: "long",
   }).format(month);
 }
 
 function formatSelectedLabel(date: Date, locale: Locale) {
-  return new Intl.DateTimeFormat(locale === "zh-Hant" ? "zh-Hant" : "en-US", {
+  return new Intl.DateTimeFormat(getIntlLocale(locale), {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -78,7 +79,11 @@ function formatSelectedLabel(date: Date, locale: Locale) {
 }
 
 function getWeekdayLabels(locale: Locale) {
-  return locale === "zh-Hant" ? ["日", "一", "二", "三", "四", "五", "六"] : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  if (locale === "zh-Hant" || locale === "zh-Hans") {
+    return ["日", "一", "二", "三", "四", "五", "六"];
+  }
+
+  return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 }
 
 export function DatePickerInput({ locale, label, hint, error, value, placeholder, onChange }: DatePickerInputProps) {
@@ -100,6 +105,13 @@ export function DatePickerInput({ locale, label, hint, error, value, placeholder
           today: "今天",
           pickerTitle: "選擇日期",
         }
+      : locale === "zh-Hans"
+        ? {
+            placeholder: placeholder ?? "点击选择日期",
+            clear: "清除",
+            today: "今天",
+            pickerTitle: "选择日期",
+          }
       : {
           placeholder: placeholder ?? "Choose a date",
           clear: "Clear",

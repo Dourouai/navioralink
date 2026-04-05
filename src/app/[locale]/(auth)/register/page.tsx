@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
 import { AuthForm } from "@/features/auth/auth-form";
 import { AuthShell } from "@/features/auth/auth-shell";
 import type { Locale } from "@/i18n/config";
+import { withLocale } from "@/i18n/config";
 import { buildPageMetadata } from "@/lib/metadata";
+import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { getCurrentAppUser } from "@/lib/supabase/server-auth";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: Locale }> }): Promise<Metadata> {
   const { locale } = await params;
@@ -12,6 +16,11 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: L
 
 export default async function RegisterPage({ params }: { params: Promise<{ locale: Locale }> }) {
   const { locale } = await params;
+  const appUser = await getCurrentAppUser();
+
+  if (hasSupabaseEnv() && appUser) {
+    redirect(withLocale(locale, "/dashboard"));
+  }
 
   return (
     <AuthShell locale={locale} mode="register">

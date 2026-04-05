@@ -8,6 +8,7 @@ interface QrListState {
   items: QRCodeItem[];
   initialized: boolean;
   initialize: (items: QRCodeItem[]) => void;
+  replaceItems: (items: QRCodeItem[]) => void;
   archiveItem: (id: string) => void;
   restoreItem: (id: string) => void;
   deleteItem: (id: string) => void;
@@ -18,15 +19,14 @@ export const useQrListStore = create<QrListState>((set) => ({
   items: [],
   initialized: false,
   initialize: (items) =>
-    set((state) => {
-      if (state.initialized) {
-        return state;
-      }
-
-      return {
-        items,
-        initialized: true,
-      };
+    set({
+      items,
+      initialized: true,
+    }),
+  replaceItems: (items) =>
+    set({
+      items,
+      initialized: true,
     }),
   archiveItem: (id) =>
     set((state) => ({

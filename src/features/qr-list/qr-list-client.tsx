@@ -13,6 +13,8 @@ import type { Locale } from "@/i18n/config";
 import { withLocale } from "@/i18n/config";
 import { getMessages } from "@/i18n/messages";
 import { getEntryUrl } from "@/lib/entry-url";
+import { duplicateEntry as duplicateEntryInDb, archiveEntry as archiveEntryInDb, deleteEntry as deleteEntryInDb, restoreEntry as restoreEntryInDb } from "@/lib/supabase/entries-browser";
+import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { useQrListStore } from "@/store/qr-list-store";
 import { formatDate, formatNumber } from "@/lib/utils";
 import type { QRCodeItem, QRStatus } from "@/types/qr";
@@ -42,7 +44,6 @@ export function QrListClient({ locale, initialItems, archiveOnly = false }: QrLi
   const t = getMessages(locale);
   const router = useRouter();
   const items = useQrListStore((state) => (state.initialized ? state.items : initialItems));
-  const initialized = useQrListStore((state) => state.initialized);
   const initialize = useQrListStore((state) => state.initialize);
   const archiveStoredItem = useQrListStore((state) => state.archiveItem);
   const restoreStoredItem = useQrListStore((state) => state.restoreItem);
@@ -73,10 +74,8 @@ export function QrListClient({ locale, initialItems, archiveOnly = false }: QrLi
   };
 
   useEffect(() => {
-    if (!initialized) {
-      initialize(initialItems);
-    }
-  }, [initialize, initialItems, initialized]);
+    initialize(initialItems);
+  }, [initialize, initialItems]);
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
@@ -227,41 +226,72 @@ export function QrListClient({ locale, initialItems, archiveOnly = false }: QrLi
     router.push(withLocale(locale, `/qrs/${encodeURIComponent(item.id)}`));
   }
 
-  function duplicateItem(item: QRCodeItem) {
-    const now = new Date().toISOString();
-    const duplicateId = `${item.id}_copy_${duplicateSeedRef.current}`;
-    duplicateSeedRef.current += 1;
-    const duplicated: QRCodeItem = {
-      ...item,
-      id: duplicateId,
-      name: locale === "zh-Hant" ? `${item.name}（副本）` : locale === "zh-Hans" ? `${item.name}（副本）` : `${item.name} (Copy)`,
-      status: "draft",
-      scans: 0,
-      createdAt: now,
-      updatedAt: now,
-      languageRules: item.languageRules?.map((rule) => ({ ...rule })),
-      regionRules: item.regionRules?.map((rule) => ({ ...rule })),
-      deviceRules: item.deviceRules?.map((rule) => ({ ...rule })),
-      paramRules: item.paramRules?.map((rule) => ({ ...rule })),
-      abRules: item.abRules?.map((rule) => ({ ...rule })),
-      tracking: item.tracking ? { ...item.tracking } : undefined,
-      design: item.design ? { ...item.design } : undefined,
-    };
-    addStoredItem(duplicated);
-    setOpenMenu(null);
-    showNotice(locale === "zh-Hant" ? "已建立副本。" : locale === "zh-Hans" ? "已创建副本。" : "Duplicate created.");
+  async function duplicateItem(item: QRCodeItem) {
+    try {
+      if (hasSupabaseEnv()) {
+        const duplicated = await duplicateEntryInDb(item);
+        if (duplicated) {
+          addStoredItem(duplicated);
+        }
+      } else {
+        const now = new Date().toISOString();
+        const duplicateId = `${item.id}_copy_${duplicateSeedRef.current}`;
+        duplicateSeedRef.current += 1;
+        const duplicated: QRCodeItem = {
+          ...item,
+          id: duplicateId,
+          name: locale === "zh-Hant" ? `${item.name}（副本）` : locale === "zh-Hans" ? `${item.name}（副本）` : `${item.name} (Copy)`,
+          status: "draft",
+          scans: 0,
+          createdAt: now,
+          updatedAt: now,
+          languageRules: item.languageRules?.map((rule) => ({ ...rule })),
+          regionRules: item.regionRules?.map((rule) => ({ ...rule })),
+          deviceRules: item.deviceRules?.map((rule) => ({ ...rule })),
+          paramRules: item.paramRules?.map((rule) => ({ ...rule })),
+          abRules: item.abRules?.map((rule) => ({ ...rule })),
+          tracking: item.tracking ? { ...item.tracking } : undefined,
+          design: item.design ? { ...item.design } : undefined,
+        };
+        addStoredItem(duplicated);
+      }
+
+      setOpenMenu(null);
+      showNotice(locale === "zh-Hant" ? "已建立副本。" : locale === "zh-Hans" ? "已创建副本。" : "Duplicate created.");
+    } catch (error) {
+      setOpenMenu(null);
+      showNotice(error instanceof Error ? error.message : locale === "zh-Hant" ? "建立副本失敗。" : locale === "zh-Hans" ? "创建副本失败。" : "Failed to duplicate entry.");
+    }
   }
 
-  function archiveItem(id: string) {
-    archiveStoredItem(id);
-    setOpenMenu(null);
-    showNotice(t.qrs.archiveNotice);
+  async function archiveItem(id: string) {
+    try {
+      if (hasSupabaseEnv()) {
+        await archiveEntryInDb(id);
+      }
+
+      archiveStoredItem(id);
+      setOpenMenu(null);
+      showNotice(t.qrs.archiveNotice);
+    } catch (error) {
+      setOpenMenu(null);
+      showNotice(error instanceof Error ? error.message : locale === "zh-Hant" ? "歸檔失敗。" : locale === "zh-Hans" ? "归档失败。" : "Failed to archive entry.");
+    }
   }
 
-  function restoreItem(id: string) {
-    restoreStoredItem(id);
-    setOpenMenu(null);
-    showNotice(t.qrs.restoreNotice);
+  async function restoreItem(id: string) {
+    try {
+      if (hasSupabaseEnv()) {
+        await restoreEntryInDb(id);
+      }
+
+      restoreStoredItem(id);
+      setOpenMenu(null);
+      showNotice(t.qrs.restoreNotice);
+    } catch (error) {
+      setOpenMenu(null);
+      showNotice(error instanceof Error ? error.message : locale === "zh-Hant" ? "恢復失敗。" : locale === "zh-Hans" ? "恢复失败。" : "Failed to restore entry.");
+    }
   }
 
   function requestDelete(item: QRCodeItem) {
@@ -273,12 +303,21 @@ export function QrListClient({ locale, initialItems, archiveOnly = false }: QrLi
     setDeleteTarget(null);
   }
 
-  function confirmDelete() {
+  async function confirmDelete() {
     if (!deleteTarget) return;
 
-    deleteStoredItem(deleteTarget.id);
-    showNotice(t.qrs.deleteNotice);
-    setDeleteTarget(null);
+    try {
+      if (hasSupabaseEnv()) {
+        await deleteEntryInDb(deleteTarget.id);
+      }
+
+      deleteStoredItem(deleteTarget.id);
+      showNotice(t.qrs.deleteNotice);
+      setDeleteTarget(null);
+    } catch (error) {
+      setDeleteTarget(null);
+      showNotice(error instanceof Error ? error.message : locale === "zh-Hant" ? "刪除失敗。" : locale === "zh-Hans" ? "删除失败。" : "Failed to delete entry.");
+    }
   }
 
   function toggleActionMenu(itemId: string, button: HTMLButtonElement) {

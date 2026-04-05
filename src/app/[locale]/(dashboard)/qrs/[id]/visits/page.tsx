@@ -7,19 +7,17 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { Locale } from "@/i18n/config";
+import { getIntlLocale } from "@/i18n/format";
 import { withLocale } from "@/i18n/config";
 import { getMessages } from "@/i18n/messages";
-import { entryAnalyticsById, getEntryAnalyticsWindow } from "@/mock/entry-analytics";
-import { mockQrList } from "@/mock/qrs";
+import { getEntryAnalyticsDetailServer } from "@/lib/supabase/analytics-server";
+import { getEntryByIdServer } from "@/lib/supabase/entries-server";
+import { createEmptyEntryAnalyticsDetail, getEntryAnalyticsWindow } from "@/mock/entry-analytics";
 
 const PAGE_SIZE = 20;
 
-function getLocaleTag(locale: Locale) {
-  return locale === "zh-Hant" ? "zh-Hant" : locale === "zh-Hans" ? "zh-Hans" : "en-US";
-}
-
 function formatDate(value: string, locale: Locale, withTime = false) {
-  return new Intl.DateTimeFormat(getLocaleTag(locale), {
+  return new Intl.DateTimeFormat(getIntlLocale(locale), {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -28,7 +26,7 @@ function formatDate(value: string, locale: Locale, withTime = false) {
 }
 
 function formatNumber(value: number, locale: Locale) {
-  return new Intl.NumberFormat(getLocaleTag(locale)).format(value);
+  return new Intl.NumberFormat(getIntlLocale(locale)).format(value);
 }
 
 function getRangeLabel(locale: Locale, t: ReturnType<typeof getMessages>, range: number) {
@@ -58,7 +56,7 @@ export async function generateMetadata({
   params: Promise<{ locale: Locale; id: string }>;
 }): Promise<Metadata> {
   const { locale, id } = await params;
-  const item = mockQrList.find((entry) => entry.id === id);
+  const item = await getEntryByIdServer(id);
 
   if (!item) {
     return locale === "zh-Hant"
@@ -94,13 +92,13 @@ export default async function EntryVisitLogPage({
   const { locale, id } = await params;
   const { range, page } = await searchParams;
   const t = getMessages(locale);
-  const item = mockQrList.find((entry) => entry.id === id);
-  const analyticsDetail = entryAnalyticsById[id];
+  const item = await getEntryByIdServer(id);
 
-  if (!item || !analyticsDetail) {
+  if (!item) {
     notFound();
   }
 
+  const analyticsDetail = (await getEntryAnalyticsDetailServer(id)) ?? createEmptyEntryAnalyticsDetail(item);
   const normalizedRange = [7, 30, 90, 180, 365].includes(Number(range)) ? Number(range) : 7;
   const analytics = getEntryAnalyticsWindow(analyticsDetail, normalizedRange);
   const basePath = withLocale(locale, `/qrs/${id}/visits`);

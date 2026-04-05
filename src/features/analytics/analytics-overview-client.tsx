@@ -13,21 +13,23 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { Locale } from "@/i18n/config";
 import { withLocale } from "@/i18n/config";
+import { getIntlLocale } from "@/i18n/format";
 import { getMessages } from "@/i18n/messages";
+import type { EntryAnalyticsDetail, TrendPoint } from "@/mock/entry-analytics";
 import { cn } from "@/lib/utils";
-import { entryAnalyticsById, getEntryAnalyticsWindow, type TrendPoint } from "@/mock/entry-analytics";
-import { mockQrList } from "@/mock/qrs";
+import { getEntryAnalyticsWindow } from "@/mock/entry-analytics";
+import type { QRCodeItem } from "@/types/qr";
 
 type RangeValue = "7" | "30" | "90" | "180" | "365";
-type EntryFilterValue = "all" | (typeof mockQrList)[number]["id"];
+type EntryFilterValue = "all" | string;
 const DETAIL_SCROLL_THRESHOLD = 5;
 
 function formatNumber(value: number, locale: Locale) {
-  return new Intl.NumberFormat(locale === "zh-Hant" ? "zh-Hant" : "en-US").format(value);
+  return new Intl.NumberFormat(getIntlLocale(locale)).format(value);
 }
 
 function formatDate(value: string, locale: Locale) {
-  return new Intl.DateTimeFormat(locale === "zh-Hant" ? "zh-Hant" : "en-US", {
+  return new Intl.DateTimeFormat(getIntlLocale(locale), {
     month: "short",
     day: "numeric",
     hour: "2-digit",
@@ -36,14 +38,14 @@ function formatDate(value: string, locale: Locale) {
 }
 
 function formatShortDate(value: string, locale: Locale) {
-  return new Intl.DateTimeFormat(locale === "zh-Hant" ? "zh-Hant" : "en-US", {
+  return new Intl.DateTimeFormat(getIntlLocale(locale), {
     month: "short",
     day: "numeric",
   }).format(new Date(value));
 }
 
 function formatMonth(value: string, locale: Locale) {
-  return new Intl.DateTimeFormat(locale === "zh-Hant" ? "zh-Hant" : "en-US", {
+  return new Intl.DateTimeFormat(getIntlLocale(locale), {
     month: "short",
     year: "2-digit",
   }).format(new Date(value));
@@ -112,7 +114,13 @@ function buildChartData(points: TrendPoint[], rangeDays: number, locale: Locale)
   }));
 }
 
-export function AnalyticsOverviewClient({ locale }: { locale: Locale }) {
+interface AnalyticsOverviewClientProps {
+  locale: Locale;
+  initialItems: QRCodeItem[];
+  initialAnalyticsById: Record<string, EntryAnalyticsDetail>;
+}
+
+export function AnalyticsOverviewClient({ locale, initialItems, initialAnalyticsById }: AnalyticsOverviewClientProps) {
   const t = getMessages(locale);
   const [selectedRange, setSelectedRange] = useState<RangeValue>("7");
   const [selectedEntryId, setSelectedEntryId] = useState<EntryFilterValue>("all");
@@ -127,29 +135,29 @@ export function AnalyticsOverviewClient({ locale }: { locale: Locale }) {
   ];
   const entryOptions = [
     { value: "all", label: t.analytics.allLinks, description: t.analytics.entryFilterAllHint },
-    ...mockQrList.map((item) => ({
+    ...initialItems.map((item) => ({
       value: item.id,
       label: item.name,
       description: item.defaultUrl,
     })),
   ];
-  const selectedEntry = mockQrList.find((item) => item.id === selectedEntryId) ?? null;
+  const selectedEntry = initialItems.find((item) => item.id === selectedEntryId) ?? null;
 
   const filteredEntries = useMemo(() => {
-    return selectedEntryId === "all" ? mockQrList : mockQrList.filter((item) => item.id === selectedEntryId);
-  }, [selectedEntryId]);
+    return selectedEntryId === "all" ? initialItems : initialItems.filter((item) => item.id === selectedEntryId);
+  }, [initialItems, selectedEntryId]);
 
   const report = useMemo(() => {
     const entriesWithAnalytics = filteredEntries
       .map((item) => {
-        const detail = entryAnalyticsById[item.id];
+        const detail = initialAnalyticsById[item.id];
         if (!detail) return null;
         return {
           item,
           analytics: getEntryAnalyticsWindow(detail, rangeDays),
         };
       })
-      .filter(Boolean) as Array<{ item: (typeof mockQrList)[number]; analytics: ReturnType<typeof getEntryAnalyticsWindow> }>;
+      .filter(Boolean) as Array<{ item: QRCodeItem; analytics: ReturnType<typeof getEntryAnalyticsWindow> }>;
 
     const totalScans = entriesWithAnalytics.reduce((sum, current) => sum + current.analytics.totalScans, 0);
     const todayScans = entriesWithAnalytics.reduce((sum, current) => sum + current.analytics.todayScans, 0);
@@ -194,7 +202,7 @@ export function AnalyticsOverviewClient({ locale }: { locale: Locale }) {
       osData,
       languageData,
     };
-  }, [filteredEntries, locale, rangeDays]);
+  }, [filteredEntries, initialAnalyticsById, locale, rangeDays]);
 
   const breakdownSections = [
     { title: t.analytics.regionBreakdown, rows: report.regionData },
@@ -229,7 +237,7 @@ export function AnalyticsOverviewClient({ locale }: { locale: Locale }) {
             <p className="mt-1 text-xs text-slate-400">{t.analytics.rangeHint}</p>
           </div>
           <Badge tone="info">
-            {t.analytics.totalEntries}: {formatNumber(mockQrList.length, locale)}
+            {t.analytics.totalEntries}: {formatNumber(initialItems.length, locale)}
           </Badge>
         </div>
         <div className="grid gap-4 lg:grid-cols-2">

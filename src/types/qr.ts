@@ -21,6 +21,7 @@ export interface VCardSocialLink {
 }
 
 export interface WhatsAppTarget {
+  countryIso?: string;
   countryCode?: string;
   phone?: string;
   message?: string;
@@ -63,6 +64,7 @@ export interface QRDesign {
 
 export interface QRCodeItem {
   id: string;
+  slug?: string;
   name: string;
   // Public entry path prefixes are reserved as:
   // l = link

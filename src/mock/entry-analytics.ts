@@ -1,3 +1,5 @@
+import type { QRCodeItem } from "@/types/qr";
+
 export interface BreakdownRow {
   label: string;
   scans: number;
@@ -412,4 +414,38 @@ export function getEntryAnalyticsDateRange(detail: EntryAnalyticsDetail, from?: 
   });
 
   return buildWindowFromTrendPoints(detail, trendPoints.length > 0 ? trendPoints : detail.yearlyTrendData.slice(-7));
+}
+
+export function createEmptyEntryAnalyticsDetail(item: QRCodeItem): EntryAnalyticsDetail {
+  const yearlyTrendData = Array.from({ length: 365 }, (_, index) => {
+    const date = createDate(364 - index);
+    return {
+      date: date.toISOString().slice(0, 10),
+      scans: 0,
+    };
+  });
+
+  return {
+    id: item.id,
+    totalScans: item.scans,
+    todayScans: 0,
+    uniqueVisitors: 0,
+    uniqueVisitorRatio: 0,
+    conversionRate: "0.0%",
+    lastScan: item.updatedAt,
+    topRegion: "",
+    topDevice: "",
+    topOs: "",
+    topLanguage: "",
+    trendData: yearlyTrendData.slice(-7).map((point) => ({
+      day: point.date,
+      scans: point.scans,
+    })),
+    yearlyTrendData,
+    regionData: [],
+    deviceData: [],
+    osData: [],
+    languageData: [],
+    visitLogs: [],
+  };
 }

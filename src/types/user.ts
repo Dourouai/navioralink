@@ -4,4 +4,5 @@ export interface User {
   name?: string;
   createdAt: string;
   timezone?: string;
+  defaultLocale?: string;
 }

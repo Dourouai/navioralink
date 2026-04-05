@@ -3,16 +3,18 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 
-interface Option {
+export interface SearchableSelectOption {
   value: string;
   label: string;
   description?: string;
+  keywords?: string;
 }
 
 interface SearchableSelectProps {
   label?: string;
+  labelBadge?: string;
   value: string;
-  options: Option[];
+  options: SearchableSelectOption[];
   placeholder?: string;
   searchPlaceholder?: string;
   noResultsLabel?: string;
@@ -24,6 +26,7 @@ interface SearchableSelectProps {
 
 export function SearchableSelect({
   label,
+  labelBadge,
   value,
   options,
   placeholder = "Select…",
@@ -42,7 +45,7 @@ export function SearchableSelect({
   const normalizedQuery = query.trim().toLowerCase();
   const filtered = searchable && normalizedQuery
     ? options.filter((o) => {
-        const haystack = `${o.label} ${o.value}`.toLowerCase();
+        const haystack = `${o.label} ${o.value} ${o.description ?? ""} ${o.keywords ?? ""}`.toLowerCase();
         return haystack.includes(normalizedQuery);
       })
     : options;
@@ -66,7 +69,16 @@ export function SearchableSelect({
 
   return (
     <div className="block space-y-2" ref={ref}>
-      {label ? <span className="text-sm font-medium text-slate-700">{label}</span> : null}
+      {label ? (
+        <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
+          <span>{label}</span>
+          {labelBadge ? (
+            <span className="text-[12px] font-semibold text-rose-500">
+              {labelBadge}
+            </span>
+          ) : null}
+        </span>
+      ) : null}
       <div className={dropdownMode === "overlay" ? "relative" : ""}>
         <button
           type="button"

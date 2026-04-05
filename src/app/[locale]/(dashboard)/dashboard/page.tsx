@@ -9,9 +9,8 @@ import type { Locale } from "@/i18n/config";
 import { withLocale } from "@/i18n/config";
 import { getMessages } from "@/i18n/messages";
 import { buildPageMetadata } from "@/lib/metadata";
+import { getDashboardStatsServer, getEntriesServer } from "@/lib/supabase/entries-server";
 import { formatDate, formatNumber } from "@/lib/utils";
-import { dashboardStats } from "@/mock/dashboard";
-import { mockQrList } from "@/mock/qrs";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: Locale }> }): Promise<Metadata> {
   const { locale } = await params;
@@ -21,6 +20,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: L
 export default async function DashboardPage({ params }: { params: Promise<{ locale: Locale }> }) {
   const { locale } = await params;
   const t = getMessages(locale);
+  const [dashboardStats, items] = await Promise.all([getDashboardStatsServer(), getEntriesServer()]);
 
   const ruleModeLabel =
     locale === "zh-Hant"
@@ -63,7 +63,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
           "The most recent rule update happened today.",
         ];
 
-  function getStatusTone(status: (typeof mockQrList)[number]["status"]) {
+  function getStatusTone(status: (typeof items)[number]["status"]) {
     if (status === "active") return "success" as const;
     if (status === "draft" || status === "paused" || status === "archived") return "default" as const;
     return "danger" as const;
@@ -145,7 +145,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
               <div>{t.common.updatedAt}</div>
             </div>
 
-            {mockQrList.slice(0, 6).map((item) => (
+            {items.slice(0, 6).map((item) => (
               <div
                 key={item.id}
                 className="grid gap-4 border-t border-slate-100 px-5 py-4 lg:grid-cols-[2fr_0.8fr_0.9fr_1fr_1fr_1fr] lg:items-center"

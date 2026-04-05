@@ -11,8 +11,9 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { Locale } from "@/i18n/config";
 import { withLocale } from "@/i18n/config";
+import { getIntlLocale } from "@/i18n/format";
 import { getMessages } from "@/i18n/messages";
-import { requestEmailChangeCode, requestPasswordChangeCode, updateAccountEmail, updateAccountPassword } from "@/lib/services";
+import { requestEmailChangeCode, requestPasswordChangeCode, updateAccountEmail, updateAccountPassword, updateAccountProfile } from "@/lib/services";
 import { currentPlan, billingHistory } from "@/mock/billing";
 import { useAuthStore } from "@/store/auth-store";
 
@@ -34,9 +35,10 @@ const timezoneOptions = [
   "America/Vancouver",
   "Australia/Sydney",
 ];
+const DEFAULT_ERROR_MESSAGE = "Something went wrong. Please try again.";
 
 function formatDate(value: string, locale: Locale) {
-  return new Intl.DateTimeFormat(locale === "zh-Hant" ? "zh-Hant" : "en-US", {
+  return new Intl.DateTimeFormat(getIntlLocale(locale), {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -44,7 +46,7 @@ function formatDate(value: string, locale: Locale) {
 }
 
 function formatCurrency(value: number, currency: string, locale: Locale) {
-  return new Intl.NumberFormat(locale === "zh-Hant" ? "zh-Hant" : "en-US", {
+  return new Intl.NumberFormat(getIntlLocale(locale), {
     style: "currency",
     currency,
     maximumFractionDigits: 0,
@@ -60,7 +62,7 @@ function formatUsageValue(value: number, type: "default" | "storage", locale: Lo
     return `${value} MB`;
   }
 
-  return new Intl.NumberFormat(locale === "zh-Hant" ? "zh-Hant" : "en-US").format(value);
+  return new Intl.NumberFormat(getIntlLocale(locale)).format(value);
 }
 
 interface SecurityModalProps {
@@ -135,6 +137,8 @@ export function SettingsCenter({ locale }: SettingsCenterProps) {
   const [passwordCodeSent, setPasswordCodeSent] = useState(false);
   const [selectedTimezone, setSelectedTimezone] = useState(user?.timezone ?? "UTC");
   const [timezoneSuccess, setTimezoneSuccess] = useState("");
+  const [timezonePending, setTimezonePending] = useState(false);
+  const [timezoneError, setTimezoneError] = useState("");
 
   const currentEmail = user?.email ?? "hello@naviora.com";
   const accountName = user?.name ?? "Naviora User";
@@ -168,7 +172,7 @@ export function SettingsCenter({ locale }: SettingsCenterProps) {
   ];
   const timezonePreview = useMemo(() => {
     try {
-      return new Intl.DateTimeFormat(locale === "zh-Hant" ? "zh-Hant" : "en-US", {
+      return new Intl.DateTimeFormat(getIntlLocale(locale), {
         dateStyle: "medium",
         timeStyle: "short",
         timeZone: selectedTimezone,
@@ -242,8 +246,16 @@ export function SettingsCenter({ locale }: SettingsCenterProps) {
     setEmailErrors({});
 
     try {
-      await requestEmailChangeCode(normalizedEmail);
+      await requestEmailChangeCode({
+        currentPassword: emailForm.currentPassword,
+        newEmail: normalizedEmail,
+        currentEmail,
+      });
       setEmailCodeSent(true);
+    } catch (error) {
+      setEmailErrors({
+        currentPassword: error instanceof Error ? error.message : DEFAULT_ERROR_MESSAGE,
+      });
     } finally {
       setEmailCodePending(false);
     }
@@ -254,8 +266,12 @@ export function SettingsCenter({ locale }: SettingsCenterProps) {
     setPasswordErrors((currentErrors) => ({ ...currentErrors, verificationCode: undefined }));
 
     try {
-      await requestPasswordChangeCode(currentEmail);
+      await requestPasswordChangeCode();
       setPasswordCodeSent(true);
+    } catch (error) {
+      setPasswordErrors({
+        verificationCode: error instanceof Error ? error.message : DEFAULT_ERROR_MESSAGE,
+      });
     } finally {
       setPasswordCodePending(false);
     }
@@ -293,10 +309,17 @@ export function SettingsCenter({ locale }: SettingsCenterProps) {
 
     setEmailPending(true);
     try {
-      await updateAccountEmail(normalizedEmail);
-      updateUser({ email: normalizedEmail });
+      const updatedUser = await updateAccountEmail({
+        newEmail: normalizedEmail,
+        verificationCode: emailForm.verificationCode.trim(),
+      });
+      updateUser(updatedUser);
       setEmailSuccess(t.settings.emailUpdated);
       closeActiveModal();
+    } catch (error) {
+      setEmailErrors({
+        verificationCode: error instanceof Error ? error.message : DEFAULT_ERROR_MESSAGE,
+      });
     } finally {
       setEmailPending(false);
     }
@@ -327,18 +350,36 @@ export function SettingsCenter({ locale }: SettingsCenterProps) {
 
     setPasswordPending(true);
     try {
-      await updateAccountPassword();
+      await updateAccountPassword({
+        verificationCode: passwordForm.verificationCode.trim(),
+        newPassword: passwordForm.newPassword,
+      });
       setPasswordSuccess(t.settings.passwordUpdated);
       closeActiveModal();
+    } catch (error) {
+      setPasswordErrors({
+        verificationCode: error instanceof Error ? error.message : DEFAULT_ERROR_MESSAGE,
+      });
     } finally {
       setPasswordPending(false);
     }
   }
 
-  function handleTimezoneSave() {
-    updateUser({ timezone: selectedTimezone });
-    setTimezoneSuccess(t.settings.timezoneUpdated);
-    window.setTimeout(() => setTimezoneSuccess(""), 1800);
+  async function handleTimezoneSave() {
+    setTimezonePending(true);
+    setTimezoneError("");
+    setTimezoneSuccess("");
+
+    try {
+      const updatedUser = await updateAccountProfile({ timezone: selectedTimezone });
+      updateUser(updatedUser);
+      setTimezoneSuccess(t.settings.timezoneUpdated);
+      window.setTimeout(() => setTimezoneSuccess(""), 1800);
+    } catch (error) {
+      setTimezoneError(error instanceof Error ? error.message : DEFAULT_ERROR_MESSAGE);
+    } finally {
+      setTimezonePending(false);
+    }
   }
 
   return (
@@ -403,7 +444,7 @@ export function SettingsCenter({ locale }: SettingsCenterProps) {
                 <p className="mt-2 text-sm leading-6 text-slate-500">{t.settings.timezoneBody}</p>
               </div>
               <Button type="button" variant="secondary" onClick={handleTimezoneSave} className="shrink-0 whitespace-nowrap rounded-[14px] px-4 py-2">
-                {t.settings.saveTimezone}
+                {timezonePending ? t.common.loading : t.settings.saveTimezone}
               </Button>
             </div>
 
@@ -430,6 +471,7 @@ export function SettingsCenter({ locale }: SettingsCenterProps) {
             </div>
 
             {timezoneSuccess ? <div className="mt-4 rounded-[18px] bg-emerald-50 px-4 py-3 text-sm text-emerald-700 ring-1 ring-emerald-100">{timezoneSuccess}</div> : null}
+            {timezoneError ? <div className="mt-4 rounded-[18px] bg-rose-50 px-4 py-3 text-sm text-rose-700 ring-1 ring-rose-100">{timezoneError}</div> : null}
           </div>
         </Card>
 
@@ -615,21 +657,35 @@ export function SettingsCenter({ locale }: SettingsCenterProps) {
                 className="h-12 rounded-[16px]"
               />
 
-              <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-                <Input
-                  label={t.settings.emailVerificationCode}
-                  value={emailForm.verificationCode}
-                  onChange={(event) => {
-                    setEmailForm((currentForm) => ({ ...currentForm, verificationCode: event.target.value }));
-                    setEmailErrors((currentErrors) => ({ ...currentErrors, verificationCode: undefined }));
-                  }}
-                  error={emailErrors.verificationCode}
-                  hint={emailCodeSent ? t.settings.verificationCodeSent : undefined}
-                  className="h-12 rounded-[16px]"
-                />
-                <Button type="button" variant="secondary" onClick={handleEmailCodeSend} disabled={emailCodePending} className="h-12 rounded-[16px] px-5">
-                  {emailCodePending ? t.common.loading : emailCodeSent ? t.settings.resendVerificationCode : t.settings.sendVerificationCode}
-                </Button>
+              <div className="rounded-[20px] border border-[rgba(190,206,226,0.55)] bg-white/92 p-4">
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_148px] sm:items-end">
+                  <label className="block space-y-2">
+                    <span className="text-sm font-medium text-slate-700">{t.settings.emailVerificationCode}</span>
+                    <input
+                      value={emailForm.verificationCode}
+                      onChange={(event) => {
+                        setEmailForm((currentForm) => ({ ...currentForm, verificationCode: event.target.value }));
+                        setEmailErrors((currentErrors) => ({ ...currentErrors, verificationCode: undefined }));
+                      }}
+                      className={`h-12 w-full rounded-[16px] border bg-white/92 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 ${
+                        emailErrors.verificationCode
+                          ? "border-rose-300 focus:border-rose-400 focus:ring-4 focus:ring-rose-100"
+                          : "border-slate-200 focus:border-[rgba(18,119,255,0.5)] focus:ring-4 focus:ring-[rgba(18,119,255,0.12)]"
+                      }`}
+                    />
+                    {emailErrors.verificationCode ? <p className="text-sm text-rose-600">{emailErrors.verificationCode}</p> : null}
+                    {!emailErrors.verificationCode && emailCodeSent ? <p className="text-sm text-slate-500">{t.settings.verificationCodeSent}</p> : null}
+                  </label>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={handleEmailCodeSend}
+                    disabled={emailCodePending}
+                    className="h-12 w-full rounded-[16px] px-5 sm:w-auto"
+                  >
+                    {emailCodePending ? t.common.loading : emailCodeSent ? t.settings.resendVerificationCode : t.settings.sendVerificationCode}
+                  </Button>
+                </div>
               </div>
             </>
           ) : null}
@@ -658,27 +714,35 @@ export function SettingsCenter({ locale }: SettingsCenterProps) {
           </div>
 
           <div className="rounded-[20px] bg-white/92 p-4 ring-1 ring-[rgba(190,206,226,0.46)]">
-            <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-            <Input
-              label={t.settings.passwordVerificationCode}
-              value={passwordForm.verificationCode}
-              onChange={(event) => {
-                setPasswordForm((currentForm) => ({ ...currentForm, verificationCode: event.target.value }));
-                setPasswordErrors((currentErrors) => ({ ...currentErrors, verificationCode: undefined }));
-              }}
-              error={passwordErrors.verificationCode}
-              hint={passwordCodeSent ? t.settings.verificationCodeSent : t.settings.passwordCodeHint}
-              className="h-12 rounded-[16px]"
-            />
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_148px] sm:items-end">
+              <label className="block space-y-2">
+                <span className="text-sm font-medium text-slate-700">{t.settings.passwordVerificationCode}</span>
+                <input
+                  value={passwordForm.verificationCode}
+                  onChange={(event) => {
+                    setPasswordForm((currentForm) => ({ ...currentForm, verificationCode: event.target.value }));
+                    setPasswordErrors((currentErrors) => ({ ...currentErrors, verificationCode: undefined }));
+                  }}
+                  className={`h-12 w-full rounded-[16px] border bg-white/92 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 ${
+                    passwordErrors.verificationCode
+                      ? "border-rose-300 focus:border-rose-400 focus:ring-4 focus:ring-rose-100"
+                      : "border-slate-200 focus:border-[rgba(18,119,255,0.5)] focus:ring-4 focus:ring-[rgba(18,119,255,0.12)]"
+                  }`}
+                />
+                {passwordErrors.verificationCode ? <p className="text-sm text-rose-600">{passwordErrors.verificationCode}</p> : null}
+                {!passwordErrors.verificationCode ? (
+                  <p className="text-sm text-slate-500">{passwordCodeSent ? t.settings.verificationCodeSent : t.settings.passwordCodeHint}</p>
+                ) : null}
+              </label>
               <Button
                 type="button"
                 variant="secondary"
                 onClick={handlePasswordCodeSend}
                 disabled={passwordCodePending}
-                className="h-12 min-w-[116px] rounded-[16px] px-5 whitespace-nowrap"
+                className="h-12 w-full min-w-[116px] rounded-[16px] px-5 whitespace-nowrap sm:w-auto"
               >
-              {passwordCodePending ? t.common.loading : passwordCodeSent ? t.settings.resendVerificationCode : t.settings.sendVerificationCode}
-            </Button>
+                {passwordCodePending ? t.common.loading : passwordCodeSent ? t.settings.resendVerificationCode : t.settings.sendVerificationCode}
+              </Button>
             </div>
           </div>
 

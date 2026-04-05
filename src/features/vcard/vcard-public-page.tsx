@@ -4,6 +4,7 @@ import Image from "next/image";
 import { AtSign, Download, Facebook, Globe, Instagram, Linkedin, Mail, MessageCircleMore, Phone, Youtube } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import type { Locale } from "@/i18n/config";
 import { readVCardProfile, resolveVCardAvatarSrc } from "@/lib/vcard";
 import type { VCardProfile, VCardSocialPlatform } from "@/types/qr";
@@ -231,8 +232,11 @@ export function VCardPublicPage({ locale, id }: VCardPublicPageProps) {
           </div>
         </section>
 
-        <footer className="w-full max-w-[760px] pt-6 text-center text-xs font-medium tracking-[0.04em] text-slate-400">
-          Powered by Naviora
+        <footer className="w-full max-w-[760px] pt-8 text-center">
+          <div className="flex flex-col items-center gap-4">
+            <LanguageSwitcher locale={locale} className="shrink-0" />
+            <div className="text-[11px] font-medium tracking-[0.04em] text-slate-400">Powered by Naviora</div>
+          </div>
         </footer>
       </div>
     </main>

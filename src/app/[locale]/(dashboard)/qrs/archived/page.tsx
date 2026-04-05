@@ -8,7 +8,7 @@ import type { Locale } from "@/i18n/config";
 import { withLocale } from "@/i18n/config";
 import { getMessages } from "@/i18n/messages";
 import { buildPageMetadata } from "@/lib/metadata";
-import { mockQrList } from "@/mock/qrs";
+import { getEntriesServer } from "@/lib/supabase/entries-server";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: Locale }> }): Promise<Metadata> {
   const { locale } = await params;
@@ -18,6 +18,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: L
 export default async function QrArchivedPage({ params }: { params: Promise<{ locale: Locale }> }) {
   const { locale } = await params;
   const t = getMessages(locale);
+  const items = await getEntriesServer({ archivedOnly: true });
 
   return (
     <div className="space-y-6">
@@ -31,7 +32,7 @@ export default async function QrArchivedPage({ params }: { params: Promise<{ loc
           </Link>
         }
       />
-      <QrListClient locale={locale} initialItems={mockQrList} archiveOnly />
+      <QrListClient locale={locale} initialItems={items} archiveOnly />
     </div>
   );
 }

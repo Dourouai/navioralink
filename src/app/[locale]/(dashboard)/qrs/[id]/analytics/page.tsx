@@ -12,22 +12,19 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { Locale } from "@/i18n/config";
+import { getIntlLocale } from "@/i18n/format";
 import { withLocale } from "@/i18n/config";
 import { getMessages } from "@/i18n/messages";
 import { buildEntryAnalyticsMetadata } from "@/lib/metadata";
+import { getEntryAnalyticsDetailServer } from "@/lib/supabase/analytics-server";
+import { getEntryByIdServer } from "@/lib/supabase/entries-server";
 import { cn } from "@/lib/utils";
 import type { EntryAnalyticsWindow } from "@/mock/entry-analytics";
-import { entryAnalyticsById, getEntryAnalyticsWindow } from "@/mock/entry-analytics";
-import { mockQrList } from "@/mock/qrs";
+import { createEmptyEntryAnalyticsDetail, getEntryAnalyticsWindow } from "@/mock/entry-analytics";
+import type { QRCodeItem } from "@/types/qr";
 
 const DETAIL_SCROLL_THRESHOLD = 5;
 const CHART_BUCKET_LIMIT = 10;
-
-function getLocaleTag(locale: Locale) {
-  if (locale === "zh-Hant") return "zh-Hant";
-  if (locale === "zh-Hans") return "zh-Hans";
-  return "en-US";
-}
 
 export async function generateMetadata({
   params,
@@ -35,7 +32,7 @@ export async function generateMetadata({
   params: Promise<{ locale: Locale; id: string }>;
 }): Promise<Metadata> {
   const { locale, id } = await params;
-  const item = mockQrList.find((entry) => entry.id === id);
+  const item = await getEntryByIdServer(id);
 
   if (!item) {
     return locale === "zh-Hant"
@@ -47,7 +44,7 @@ export async function generateMetadata({
 }
 
 function formatDate(value: string, locale: Locale, withTime = false) {
-  return new Intl.DateTimeFormat(getLocaleTag(locale), {
+  return new Intl.DateTimeFormat(getIntlLocale(locale), {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -56,11 +53,11 @@ function formatDate(value: string, locale: Locale, withTime = false) {
 }
 
 function formatNumber(value: number, locale: Locale) {
-  return new Intl.NumberFormat(getLocaleTag(locale)).format(value);
+  return new Intl.NumberFormat(getIntlLocale(locale)).format(value);
 }
 
 function formatShare(value: number, total: number, locale: Locale) {
-  return new Intl.NumberFormat(getLocaleTag(locale), {
+  return new Intl.NumberFormat(getIntlLocale(locale), {
     style: "percent",
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
@@ -90,7 +87,7 @@ function buildChartRows(
   ];
 }
 
-function getRoutingTargets(item: (typeof mockQrList)[number], t: ReturnType<typeof getMessages>) {
+function getRoutingTargets(item: QRCodeItem, t: ReturnType<typeof getMessages>) {
   if (item.ruleMode === "language") {
     return [
       { label: t.analytics.defaultRoute, url: item.defaultUrl },
@@ -130,7 +127,7 @@ function getRoutingTargets(item: (typeof mockQrList)[number], t: ReturnType<type
 }
 
 function getDetailedRoutingTargets(
-  item: (typeof mockQrList)[number],
+  item: QRCodeItem,
   t: ReturnType<typeof getMessages>,
   analytics: EntryAnalyticsWindow,
 ) {
@@ -153,7 +150,7 @@ function getDetailedRoutingTargets(
 }
 
 function formatChartDay(value: string, locale: Locale) {
-  return new Intl.DateTimeFormat(getLocaleTag(locale), {
+  return new Intl.DateTimeFormat(getIntlLocale(locale), {
     month: "short",
     day: "numeric",
   }).format(new Date(`${value}T12:00:00.000Z`));
@@ -178,13 +175,13 @@ export default async function EntryAnalyticsPage({
   const { locale, id } = await params;
   const { range } = await searchParams;
   const t = getMessages(locale);
-  const item = mockQrList.find((entry) => entry.id === id);
-  const analyticsDetail = entryAnalyticsById[id];
+  const item = await getEntryByIdServer(id);
 
-  if (!item || !analyticsDetail) {
+  if (!item) {
     notFound();
   }
 
+  const analyticsDetail = (await getEntryAnalyticsDetailServer(id)) ?? createEmptyEntryAnalyticsDetail(item);
   const normalizedRange = [7, 30, 90, 180, 365].includes(Number(range)) ? Number(range) : 7;
   const analytics = getEntryAnalyticsWindow(analyticsDetail, normalizedRange);
   const chartData = analytics.trendPoints.map((point) => ({ day: formatChartDay(point.date, locale), scans: point.scans }));
@@ -340,7 +337,7 @@ export default async function EntryAnalyticsPage({
       <WorldTrafficMap
         title={t.analytics.globalMapTitle}
         body={t.analytics.globalMapBody}
-        locale={locale === "zh-Hant" ? "zh-Hant" : "en-US"}
+        locale={getIntlLocale(locale)}
         scansLabel={t.analytics.visitsUnit}
         rows={analytics.regionData}
       />

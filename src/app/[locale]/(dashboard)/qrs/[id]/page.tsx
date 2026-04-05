@@ -8,7 +8,7 @@ import { QrDetailClient } from "@/features/qr-list/qr-detail-client";
 import type { Locale } from "@/i18n/config";
 import { withLocale } from "@/i18n/config";
 import { getMessages } from "@/i18n/messages";
-import { mockQrList } from "@/mock/qrs";
+import { getEntryByIdServer } from "@/lib/supabase/entries-server";
 
 export async function generateMetadata({
   params,
@@ -16,7 +16,7 @@ export async function generateMetadata({
   params: Promise<{ locale: Locale; id: string }>;
 }): Promise<Metadata> {
   const { locale, id } = await params;
-  const item = mockQrList.find((entry) => entry.id === id);
+  const item = await getEntryByIdServer(id);
 
   if (!item) {
     return locale === "zh-Hant"
@@ -40,7 +40,7 @@ export default async function QrDetailPage({
 }) {
   const { locale, id } = await params;
   const t = getMessages(locale);
-  const item = mockQrList.find((entry) => entry.id === id);
+  const item = await getEntryByIdServer(id);
 
   if (!item) {
     notFound();
