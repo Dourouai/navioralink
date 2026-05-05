@@ -1,0 +1,52 @@
+{
+  "name": "naviora-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^5.2.2",
+    "@supabase/ssr": "^0.10.0",
+    "@supabase/supabase-js": "^2.101.1",
+    "cos-js-sdk-v5": "^1.10.1",
+    "cos-nodejs-sdk-v5": "^2.15.4",
+    "creem_io": "^1.0.0",
+    "d3-geo": "^3.1.1",
+    "jszip": "^3.10.1",
+    "libphonenumber-js": "^1.12.41",
+    "lucide-react": "^0.577.0",
+    "next": "^16.1.6",
+    "qcloud-cos-sts": "^3.1.3",
+    "qrcode": "^1.5.4",
+    "react": "19.2.5",
+    "react-dom": "19.2.5",
+    "react-hook-form": "^7.71.2",
+    "react-icons": "^5.6.0",
+    "recharts": "^3.8.0",
+    "tencentcloud-sdk-nodejs-captcha": "^4.1.191",
+    "topojson-client": "^3.1.0",
+    "world-atlas": "^2.0.2",
+    "zod": "^4.3.6",
+    "zustand": "^5.0.12"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.1",
+    "@types/node": "^25.5.0",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "eslint": "^9.39.1",
+    "eslint-config-next": "^16.1.6",
+    "postcss": "^8.5.8",
+    "prettier": "^3.8.1",
+    "tailwindcss": "^4.2.1",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

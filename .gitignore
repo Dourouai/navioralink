@@ -1,10 +1,11 @@
-.next
+**/.next
 node_modules
 coverage
 dist
 *.log
 .DS_Store
-.vercel
+**/.vercel
 .env.local
 .env.*.local
 .tools
+supabase/.temp

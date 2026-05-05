@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "regions": ["icn1"],
+  "crons": [
+    {
+      "path": "/api/internal/preview-token-cleanup",
+      "schedule": "0 4 * * *"
+    }
+  ]
+}

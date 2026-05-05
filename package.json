@@ -1,42 +1,26 @@
 {
-  "name": "naviora",
+  "name": "naviora-workspace",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint .",
-    "format": "prettier --write ."
+    "dev:web": "npm run dev --workspace naviora-app",
+    "dev:public": "npm run dev --workspace naviora-public",
+    "build:web": "npm run build --workspace naviora-app",
+    "build:public": "npm run build --workspace naviora-public",
+    "lint:web": "npm run lint --workspace naviora-app",
+    "lint:public": "npm run lint --workspace naviora-public",
+    "format": "prettier --write .",
+    "supabase:auth:smtp": "node scripts/configure-supabase-auth-smtp.mjs",
+    "self-check:backend": "node scripts/check-backend-setup.mjs"
   },
-  "dependencies": {
-    "@hookform/resolvers": "^5.2.2",
-    "@supabase/ssr": "^0.10.0",
-    "@supabase/supabase-js": "^2.101.1",
-    "d3-geo": "^3.1.1",
-    "jszip": "^3.10.1",
-    "libphonenumber-js": "^1.12.41",
-    "lucide-react": "^0.577.0",
-    "next": "^16.1.6",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "react-hook-form": "^7.71.2",
-    "recharts": "^3.8.0",
-    "topojson-client": "^3.1.0",
-    "world-atlas": "^2.0.2",
-    "zod": "^4.3.6",
-    "zustand": "^5.0.12"
+  "overrides": {
+    "react": "19.2.5",
+    "react-dom": "19.2.5"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.2.1",
-    "@types/node": "^25.5.0",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "eslint": "^9.39.1",
-    "eslint-config-next": "^16.1.6",
-    "postcss": "^8.5.8",
-    "prettier": "^3.8.1",
-    "tailwindcss": "^4.2.1",
-    "typescript": "^5.9.3"
+    "prettier": "^3.8.1"
   }
 }

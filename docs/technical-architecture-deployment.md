@@ -4,14 +4,18 @@
 
 这份文档用于明确 Naviora 第一阶段上线时的技术选型、域名拆分、环境规划、数据存储方式、支付接入方式，以及测试与发布流程。
 
-目标是支持以下三类线上服务同时上线：
+目标是支持以下两类线上服务稳定运行：
 
 - `naviora.link`
   官网、登录注册、工作台、价格页、设置页、分析页
-- `page.naviora.link`
-  公开内容页，例如名片页、后续 PDF 页面、公开 profile 页面
 - `go.naviora.link`
-  智能入口与短链解析服务，负责规则命中与最终跳转
+  统一公开访问域名，负责智能入口、公开内容展示与最终跳转
+
+同时要求：
+
+- 官网与后台后续可以持续更新
+- 但主站更新不要影响公开访问层
+- 主站更新不要影响访问记录与分析统计
 
 ---
 
@@ -22,13 +26,15 @@
 - `Vercel`
   部署 Next.js 应用与短链解析服务
 - `Supabase`
-  负责 Auth、Postgres、Storage、Row Level Security
+  负责 Auth、Postgres、Row Level Security
+- `腾讯云 COS`
+  负责头像、公开名片图片、后续 PDF/文件等对象存储
 - `Creem`
   负责订阅收款、结算、客户 Portal、Webhook 生命周期通知
 
 ### 2.2 补充基础设施
 
-- `Resend` 或 `Postmark`
+- `Brevo`
   用于验证码、密码重置、邮箱变更通知、账单邮件
 - `Sentry`
   用于线上错误监控
@@ -39,30 +45,28 @@
 
 ## 3. 域名与项目拆分
 
-## 3.1 推荐拆分
+## 3.1 当前推荐拆分
 
-建议首发使用 `2 个 Vercel 项目`：
+当前阶段建议使用 `2 个 Vercel 项目`，但不是旧的 `app + go`，而是：
 
-### 项目 A：`naviora-app`
+### 项目 A：`naviora-web`
 
 承载以下域名：
 
 - `naviora.link`
 - `www.naviora.link`
-- `page.naviora.link`
 
 职责：
 
 - 官网与营销页面
 - 登录注册
 - Dashboard / Settings / Analytics / Pricing / Upgrade
-- 公开内容页
-  - `/c/[id]` 名片页
-  - 后续 `/c/[id]` 对应 PDF、profile、其他内容载体
+- 文件与媒体库
 - 支付回调 UI
 - Creem webhook 处理入口
+- 分析 UI、图表和访问明细展示
 
-### 项目 B：`naviora-go`
+### 项目 B：`naviora-public`
 
 承载以下域名：
 
@@ -73,15 +77,80 @@
 - 根据 slug 查找 entry
 - 执行规则命中
 - 记录访问日志
+- 记录公开内容互动事件
 - 重定向到最终目标
+- 公开内容页
+- 公开密码页
+- preview 公开访问入口
+- 后续邀请函、PDF、视频、profile、电子名片模板等内容载体
 
-## 3.2 为什么不拆成 3 个项目
+这个项目的定位不应只是“先把 page 和 go 放一起”，而应该明确成：
 
-当前阶段不建议把 `page.naviora.link` 再单拆一个项目，原因是：
+- `public` 是 Naviora 的长期公开访问层
+- `go` 是入口分发层
+- `content` 是内容承载层
 
-- `page` 内容页与主应用共用用户、内容、模板、权限和后台编辑逻辑
-- 过早拆成 3 个项目，会增加部署、环境变量与联调复杂度
-- `go` 服务与主应用隔离即可满足大部分首发稳定性需求
+也就是说，后续即使新增：
+
+- 邀请函内容模式
+- PDF 内容模式
+- 视频内容模式
+- Link in bio / profile 页面
+- 电子名片多模板 / 多样式版本
+
+这些能力也应优先继续沉淀在 `naviora-public`，而不是回到主站项目里。
+
+### 3.1.1 数据统计职责边界
+
+在 `web / public` 两项目结构下，数据统计不建议整体迁移到 `public`，而应明确分层：
+
+- `naviora-public`
+  - 负责公开访问与公开内容互动事件采集
+  - 写入 `entry_visits` 等原始事件
+  - 承接套餐访问限制和统计写链路
+- `Supabase`
+  - 负责原始明细、聚合表和统计函数
+  - 作为统计真源与聚合中心
+- `naviora-web`
+  - 负责 Dashboard 分析页、图表、筛选、访问明细展示和导出能力
+
+建议始终坚持：
+
+- `public = collect`
+- `database = aggregate`
+- `web = render`
+
+这样可以保证：
+
+- 公开访问热路径保持轻量
+- 分析页继续留在工作台体系内维护
+- 后续如果访问量继续增长，也可以单独优化写入与聚合，而不必迁移整个分析模块
+
+## 3.2 为什么现阶段推荐 `web / public`
+
+当前阶段的核心诉求已经从“首发快”变成了“主站持续更新，但不要影响公开访问面”。因此：
+
+- `page` 如果继续放在主站项目里，官网和后台每次发版都会把 `page` 一起带着发布
+- `page` 和 `go` 都属于公开访问层，发布节奏、稳定性要求更接近
+- 先把 `web` 和 `public` 分开，比立刻拆成 3 个项目更容易控制复杂度
+
+结论：
+
+- 当前阶段优先拆成 `web` 和 `public`
+- 等流量和复杂度上来，再把 `page` 和 `go` 从 `public` 里继续拆开
+
+补充判断：
+
+- 如果未来 `page` 的内容模式越来越多，这不会削弱 `web / public` 两项目方案，反而更说明公开内容层应该从主站独立出来
+- 也就是说，`page` 的扩展性是继续保留在 `public` 的理由，不是把它放回 `web` 的理由
+
+## 3.3 为什么暂时不直接拆成 3 个项目
+
+当前阶段不建议立即拆成 `web / page / go` 三个项目，原因是：
+
+- `page` 与 `go` 仍有较多联动，例如 preview、密码访问、公开内容跳转
+- 过早拆成 3 个项目，会增加部署、环境变量、联调和回滚复杂度
+- 当前最需要先解决的是“主站更新不要影响公开面”，而不是把公开面内部立即细拆
 
 ---
 
@@ -156,11 +225,11 @@
 结论：
 
 - `用户资料本体放 Postgres`
-- `文件资产放 Storage`
+- `文件资产放 腾讯云 COS`
 
 不要把用户资料整体存进对象存储。
 
-## 5.3 Storage
+## 5.3 腾讯云 COS
 
 用于存储文件资产：
 
@@ -180,7 +249,7 @@
 
 ### 权限建议
 
-Bucket 默认以 `private` 为主。
+COS Bucket 默认以 `private` 为主。
 
 第一阶段建议：
 
@@ -190,7 +259,37 @@ Bucket 默认以 `private` 为主。
 
 这样更适合未来“图片权限控制”能力，不会因为首发方便而把所有文件永久公开。
 
-## 5.4 Row Level Security
+## 5.4 Supabase Auth + Brevo SMTP
+
+Supabase Auth 负责：
+
+- 注册验证邮件
+- 修改邮箱验证邮件
+- 密码重置邮件
+
+这类邮件建议统一通过 `Brevo SMTP` 发出，而不是继续使用 Supabase 默认测试发件配置。
+
+推荐做法：
+
+1. 在 Brevo 中验证 `naviora.link` 发件域名
+2. 获取 SMTP Relay 凭证
+3. 在 Supabase Dashboard 的 Auth SMTP 设置里填写：
+   - host: `smtp-relay.brevo.com`
+   - port: `587`
+   - username / password: 使用 Brevo SMTP 凭证
+4. 在 Supabase Auth Redirect URLs 中加入：
+   - local
+   - preview
+   - production
+   的 callback / verify / reset 地址
+
+说明：
+
+- 应用代码里的业务通知邮件，也统一走 Brevo API
+- Supabase Auth 自带的验证类邮件，统一走 Brevo SMTP
+- 这样用户看到的发件域名与业务通知会保持一致
+
+## 5.5 Row Level Security
 
 Supabase RLS 作为基础权限层，建议规则：
 
@@ -292,28 +391,61 @@ Supabase RLS 作为基础权限层，建议规则：
 
 ## 7. 入口与内容 URL 规划
 
-## 7.1 智能入口
+## 7.1 统一公开域名
 
-公开入口建议保持：
+公开访问统一建议使用：
+
+- `https://go.naviora.link`
+
+原因：
+
+- 避免 `go` 与 `page` 跨域带来的 preview、密码访问、统计归因复杂度
+- 让公开入口与公开内容都落在同一发布面
+- 后续扩展 PDF、视频、电子名片、多模板时，不需要再维护双域名心智
+
+## 7.2 路径前缀约定
+
+当前官方公开链接与后续自定义域名链接，统一建议先使用：
 
 - `https://go.naviora.link/l/{slug}`
 
 说明：
 
-- `l` 表示 smart link 入口
-- slug 建议使用 10 位随机字母数字
+- `l` 是当前唯一正式输出的公开路径前缀
+- slug 建议继续使用 10 位随机字母数字
+- 现有系统内部即便还保留其他兼容路径，也不应作为当前首发口径继续放大
 
-## 7.2 内容页
+后续如果 `l` 明确不够用，再单独评估新增前缀，例如：
 
-公开内容页建议保持：
+- `p` = PDF
+- `v` = invitation
+- `b` = bio / profile
+- `m` = media / video
 
-- `https://page.naviora.link/c/{id}`
+在那之前，不建议提前开放更多公开路径前缀。
 
-说明：
+## 7.3 后期规划：支持 go 单域名自定义绑定
 
-- `c` 表示 content
-- 当前 vCard 已采用该结构
-- 未来 PDF、public profile 也建议统一挂到 `c` 空间
+后期可为付费套餐提供“公开域名自定义绑定”能力，例如：
+
+- `go.brand.com` 作为统一公开访问域名
+
+建议规划如下：
+
+- 用户在设置页填写希望绑定的公开子域名
+- 系统生成 DNS 配置指引，要求用户完成 `CNAME` 或平台指定记录
+- 服务端完成域名归属校验、证书签发与路由绑定
+- 绑定成功后，正式公开链接统一走：
+  - `/l/*`
+
+首发口径建议明确为：
+
+- 只支持 `go` 自定义域名
+- 不做 `page` 自定义域名
+- 不提前开放 `/s/*`、`/c/*` 作为自定义域名路径
+- 等 `/l/*` 明确不够用时，再单独评估新增其他前缀
+
+这项能力建议作为 `Plus` 及更高阶套餐的后期扩展项，以增强品牌一致性与企业化交付能力。
 
 ---
 
@@ -321,7 +453,7 @@ Supabase RLS 作为基础权限层，建议规则：
 
 ## 8.1 命中流程
 
-1. 用户访问 `go.naviora.link/l/{slug}`
+1. 用户访问 `go.naviora.link/{prefix}/{slug}`
 2. 查询 `entries`
 3. 检查状态
    - `draft`
@@ -336,8 +468,23 @@ Supabase RLS 作为基础权限层，建议规则：
    - device
    - param
    - ab
-6. 写入访问日志
-7. 跳转到最终目标
+6. 如果目标类型是内容承载型（例如电子名片），直接渲染公开内容
+7. 如果目标类型是跳转型，写入访问日志并跳转到最终目标
+
+## 8.1.1 分析链路建议
+
+统一公开域名后，推荐的统计链路如下：
+
+1. 访问者命中 `go.naviora.link/{prefix}/{slug}`
+2. `naviora-public` 负责采集并写入原始事件
+3. 数据库同步或异步维护聚合表
+4. `naviora-web` 的分析页读取聚合结果并展示
+
+这意味着：
+
+- 统计展示仍然属于 `web`
+- 统计采集属于 `public`
+- 真正需要优先优化的是数据库写入与聚合，而不是把分析 UI 挪到公开层
 
 ## 8.2 建议缓存
 
@@ -447,7 +594,7 @@ Supabase 负责：
 为了后续好扩展，当前就按以下策略实现：
 
 - 数据库存“资产元数据”
-- Storage 存“实际文件”
+- 腾讯云 COS 存“实际文件”
 - 页面通过服务端拿文件 URL
 - 所有用户上传图片默认视为可控资源，不直接裸公开
 
@@ -455,29 +602,33 @@ Supabase 负责：
 
 ## 11. 环境变量建议
 
-## 11.1 naviora-app
+## 11.1 naviora-web
 
 ### Preview / Production 均需要
 
 - `NEXT_PUBLIC_APP_URL`
-- `NEXT_PUBLIC_PAGE_URL`
 - `NEXT_PUBLIC_GO_URL`
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `CREEM_API_KEY`
 - `CREEM_WEBHOOK_SECRET`
-- `RESEND_API_KEY` 或 `POSTMARK_SERVER_TOKEN`
+- `BREVO_API_KEY`
+- `BREVO_SENDER_EMAIL`
+- `BREVO_SENDER_NAME`
+- `BREVO_REPLY_TO_EMAIL`
+- `BREVO_REPLY_TO_NAME`
+- `BREVO_SANDBOX`
 - `SENTRY_DSN`
 
-## 11.2 naviora-go
+## 11.2 naviora-public
 
 - `NEXT_PUBLIC_GO_URL`
 - `NEXT_PUBLIC_APP_URL`
-- `NEXT_PUBLIC_PAGE_URL`
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
+- `TENCENT_COS_PUBLIC_BASE_URL`（如公开页需要）
 - `UPSTASH_REDIS_REST_URL`（可选）
 - `UPSTASH_REDIS_REST_TOKEN`（可选）
 - `SENTRY_DSN`
@@ -490,7 +641,7 @@ Preview 与 Production 必须使用不同值：
 - Creem key
 - webhook secret
 - base URL
-- Storage bucket 内容
+- COS bucket 内容
 
 ---
 
@@ -519,8 +670,8 @@ Preview 与 Production 必须使用不同值：
 - 创建智能入口
 - 生成 slug
 - `go.naviora.link` 命中跳转
-- `page.naviora.link` 展示公开内容
-- Storage 图片访问
+- `go.naviora.link/l/*` 展示公开访问结果
+- COS 图片访问
 - 支付测试
 - webhook 是否正确更新订阅
 
@@ -548,7 +699,7 @@ Creem 在首发前应完整跑通：
 - Smart Entry 创建
 - Web / WhatsApp / vCard
 - go 路由
-- page 公开名片页
+- 公开内容页（vCard / 后续 PDF / 视频 / profile）
 - 基础 analytics
 - Creem 订阅
 
@@ -567,12 +718,15 @@ Creem 在首发前应完整跑通：
 第一阶段最合适的落地方案：
 
 - `Vercel`
-  - `naviora-app`
-  - `naviora-go`
+  - `naviora-web`
+  - `naviora-public`
 - `Supabase`
   - Auth
   - Postgres
-  - Storage
+- `腾讯云 COS`
+  - Object Storage
+- `Brevo`
+  - Transactional Email
 - `Creem`
   - Checkout
   - Subscription
@@ -580,10 +734,15 @@ Creem 在首发前应完整跑通：
 
 并且坚持这几个原则：
 
-- `naviora.link` 与 `page.naviora.link` 保持同一主应用
-- `go.naviora.link` 独立成单独项目
+- `naviora.link` 与工作台保持在 `web`
+- `go.naviora.link` 当前正式公开链接统一承载 `/l/*`
+- 不保留旧双域名结构
+- 等公开访问层稳定并过了初期，再按流量决定是否继续细拆
+- 上线切换时允许直接重刷线上统计数据
 - 用户资料进数据库，文件进对象存储
 - 上传文件默认 private
+- Supabase Auth 邮件统一走 Brevo SMTP
+- 业务通知邮件统一走 Brevo API
 - 订阅状态以 webhook 为准
 - Preview 与 Production 严格隔离
 
