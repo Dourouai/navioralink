@@ -107,7 +107,17 @@ export function MarketingFooter({ locale }: MarketingFooterProps) {
 
         <div className="mt-6 border-t border-[rgba(190,206,226,0.4)] pt-5">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <p className="text-xs leading-6 text-slate-400">© 2026 Naviora. All rights reserved. · {sectionTitles.aiPowered}</p>
+            <p className="text-xs leading-6 text-slate-400">
+              © 2026 Naviora. All rights reserved. · {sectionTitles.aiPowered} ·{" "}
+              <a
+                href="https://www.lopuo.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-slate-500 transition hover:text-slate-800"
+              >
+                Power By LOPUO
+              </a>
+            </p>
             <div className="flex justify-start md:justify-end">
               <LanguageSwitcher locale={locale} />
             </div>
