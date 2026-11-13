@@ -262,6 +262,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const apiKey = process.env.QWEN_API_KEY;
   const model = process.env.QWEN_MODEL ?? "qwen-plus";
+  const apiBaseUrl = (process.env.QWEN_API_BASE_URL?.trim() || "https://dashscope.aliyuncs.com/compatible-mode/v1").replace(/\/+$/, "");
 
   if (!apiKey) {
     return res.status(500).json({ reply: "未配置 QWEN_API_KEY", draft: {} });
@@ -270,7 +271,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { messages, locale } = req.body;
 
   try {
-    if (!hasSupabaseEnv() || !hasSupabaseAdminEnv()) {
+    const hasSupabaseBackend = hasSupabaseEnv() && hasSupabaseAdminEnv();
+    const localTestMode = process.env.NODE_ENV !== "production" && process.env.QWEN_LOCAL_TEST_MODE === "true";
+
+    if (!hasSupabaseBackend && !localTestMode) {
       return res.status(200).json({
         reply: locale === "zh-Hant" ? "AI 服務尚未完成設定。" : locale === "zh-Hans" ? "AI 服务尚未完成配置。" : "AI service is not configured yet.",
         draft: {},
@@ -278,44 +282,46 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    const supabase = createPagesApiSupabaseClient(req);
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+    if (hasSupabaseBackend) {
+      const supabase = createPagesApiSupabaseClient(req);
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-    if (userError || !user) {
-      return res.status(200).json({
-        reply: locale === "zh-Hant" ? "請先登入後再使用 AI 助理。" : locale === "zh-Hans" ? "请先登录后再使用 AI 助理。" : "Please sign in before using the AI assistant.",
-        draft: {},
-        readyForReview: false,
-      });
-    }
-
-    const admin = createAdminSupabaseClient();
-
-    try {
-      await assertAiConversationAllowanceForUser(user.id, admin);
-    } catch (error) {
-      if (error instanceof PlanConstraintError && error.code === PLAN_AI_CONVERSATION_LIMIT_ERROR) {
+      if (userError || !user) {
         return res.status(200).json({
-          reply: getAiConversationLimitMessage(locale),
+          reply: locale === "zh-Hant" ? "請先登入後再使用 AI 助理。" : locale === "zh-Hans" ? "请先登录后再使用 AI 助理。" : "Please sign in before using the AI assistant.",
           draft: {},
           readyForReview: false,
         });
       }
 
-      throw error;
+      const admin = createAdminSupabaseClient();
+
+      try {
+        await assertAiConversationAllowanceForUser(user.id, admin);
+      } catch (error) {
+        if (error instanceof PlanConstraintError && error.code === PLAN_AI_CONVERSATION_LIMIT_ERROR) {
+          return res.status(200).json({
+            reply: getAiConversationLimitMessage(locale),
+            draft: {},
+            readyForReview: false,
+          });
+        }
+
+        throw error;
+      }
+
+      await admin.from("ai_conversation_events").insert({
+        user_id: user.id,
+        locale: locale ?? null,
+        source: "qr_create",
+      });
     }
 
-    await admin.from("ai_conversation_events").insert({
-      user_id: user.id,
-      locale: locale ?? null,
-      source: "qr_create",
-    });
-
     const qwenRes = await fetch(
-      "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+      `${apiBaseUrl}/chat/completions`,
       {
         method: "POST",
         headers: {
